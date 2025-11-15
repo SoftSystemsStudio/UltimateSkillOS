@@ -1,49 +1,43 @@
+from core.router import Router
 from skill_engine.engine import SkillEngine
-from memory.short_term import ShortTermMemory
+from skill_engine.memory.memory_manager import MemoryManager
 
 class TaskExecutor:
     """
-    High-level agent executor with short-term memory.
+    Main agent – uses router, skills, and persistent memory.
     """
 
     def __init__(self):
         self.engine = SkillEngine()
-        self.memory = ShortTermMemory(max_items=20)
+        self.router = Router()
+        self.memory = MemoryManager()
 
-    def run(self, text):
-        # Log input into memory
-        self.memory.add({"input": text})
+    def run(self, text: str):
+        # Store input
+        self.memory.add(text)
 
-        # 1. Router chooses skill
-        router = self.engine.skills.get("router")
-        if router is None:
-            return {"error": "router skill not found"}
+        # Retrieve memory
+        related = self.memory.search(text)
+        memory_context = [m["text"] for m in related]
 
-        routing = router.run({"text": text})
-        self.memory.add({"router": routing})
+        # Route
+        route = self.router.route(text)
+        skill = route["use_skill"]
+        params = route["params"]
 
-        if "use_skill" not in routing:
-            return {"error": "router failed", "details": routing}
+        # Inject memory into params
+        params["memory_context"] = memory_context
 
-        skill_name = routing["use_skill"]
-        params = routing["params"]
+        # Execute skill
+        result = self.engine.run(skill, params)
 
-        # 2. Load the resolved skill
-        skill = self.engine.skills.get(skill_name)
-        if skill is None:
-            return {"error": f"Skill '{skill_name}' not found"}
-
-        # 3. Execute underlying skill
-        result = skill.run(params)
-
-        # Store result in memory
-        self.memory.add({"result": result})
+        # Store result
+        if isinstance(result, dict):
+            self.memory.add(str(result))
 
         return {
             "input": text,
-            "selected_skill": skill_name,
-            "used_params": params,
-            "result": result,
-            "memory": self.memory.get(),
-            "confidence": result.get("confidence", 0.8),
+            "selected_skill": skill,
+            "context_used": memory_context,
+            "result": result
         }

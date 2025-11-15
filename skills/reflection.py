@@ -1,44 +1,19 @@
-from skill_engine.base import SkillTool
-import re
+from skill_engine.base import BaseSkill
 
-class ReflectionTool(SkillTool):
+class ReflectionSkill(BaseSkill):
     name = "reflection"
-    description = "Evaluates text for clarity, correctness, structure, and completeness."
 
-    def run(self, params):
-        text = params.get("text", "").strip()
-        if not text:
-            return {"error": "Missing 'text' parameter"}
+    def run(self, params: dict):
+        text = params.get("text", "")
 
         issues = []
-
-        # Heuristic checks
-        if len(text) < 40:
+        if len(text) < 10:
             issues.append("Text is very short.")
-        if "error" in text.lower():
-            issues.append("Contains the word 'error'.")
-        if re.search(r"\bTODO\b", text):
-            issues.append("Contains TODO markers.")
-        if "  " in text:
-            issues.append("Double spacing detected.")
         if text.endswith("?"):
             issues.append("Ends with uncertainty.")
 
-        # Build improved rewrite
-        if issues:
-            rewrite = (
-                "IMPROVED VERSION:\n"
-                f"{text}\n\n"
-                "SUGGESTED FIXES:\n- " + "\n- ".join(issues)
-            )
-        else:
-            rewrite = text
-
         return {
             "text_evaluated": text,
-            "issues_found": issues or ["No issues found."],
-            "rewrite": rewrite,
-            "confidence": 0.95 if not issues else 0.80
+            "issues_found": issues,
+            "confidence": 0.8
         }
-
-tool = ReflectionTool()

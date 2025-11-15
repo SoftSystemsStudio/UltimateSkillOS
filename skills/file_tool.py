@@ -1,59 +1,76 @@
-from skill_engine.base import SkillTool
 import os
-import json
+from typing import Optional, Dict, Any
+from skill_engine.base import BaseSkill
 
-class FileTool(SkillTool):
+
+class FileTool(BaseSkill):
     name = "file"
-    description = "Read and write files within the project workspace."
 
-    def run(self, params):
+    def _normalize_path(self, raw: Optional[str]) -> Optional[str]:
+        """Ensure path is a valid string for type checking."""
+        if raw is None:
+            return None
+        if not isinstance(raw, str):
+            return None
+        cleaned = raw.strip()
+        if cleaned == "":
+            return None
+        return cleaned
+
+    def run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         action = params.get("action")
-        path = params.get("path")
+        raw_path = params.get("path")
+        content = params.get("content", "")
 
-        if not action:
-            return {"error": "Missing 'action' parameter"}
-        if not path:
-            return {"error": "Missing 'path' parameter"}
+        # Type-safe path normalization
+        path = self._normalize_path(raw_path)
+        if path is None:
+            return {"error": "Invalid or missing file path"}
 
-        # Normalize path inside workspace
-        base_dir = os.getcwd()
-        full_path = os.path.join(base_dir, path)
-
-        # Ensure directory exists for write operations
-        if action in ("write", "append"):
-            parent_dir = os.path.dirname(full_path)
-            os.makedirs(parent_dir, exist_ok=True)
-
-        # === ACTIONS ===
-
-        # READ FILE
+        # ---- READ FILE ----
         if action == "read":
-            if not os.path.exists(full_path):
+            if not os.path.exists(path):
                 return {"error": f"File not found: {path}"}
-            with open(full_path, "r", encoding="utf-8") as f:
-                return {"content": f.read(), "path": path}
 
-        # WRITE (overwrite)
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data: str = f.read()
+                return {"path": path, "content": data}
+            except Exception as e:
+                return {"error": str(e)}
+
+        # ---- WRITE FILE ----
         if action == "write":
-            content = params.get("content", "")
-            with open(full_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            return {"status": "written", "path": path}
+            try:
+                dir_path = os.path.dirname(path)
+                if dir_path:
+                    os.makedirs(dir_path, exist_ok=True)
 
-        # APPEND
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(content)
+
+                return {"status": "written", "path": path}
+            except Exception as e:
+                return {"error": str(e)}
+
+        # ---- APPEND FILE ----
         if action == "append":
-            content = params.get("content", "")
-            with open(full_path, "a", encoding="utf-8") as f:
-                f.write(content)
-            return {"status": "appended", "path": path}
+            try:
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(content)
+                return {"status": "appended", "path": path}
+            except Exception as e:
+                return {"error": str(e)}
 
-        # LIST DIRECTORY
+        # ---- LIST DIRECTORY ----
         if action == "list":
-            if not os.path.isdir(full_path):
-                return {"error": f"Directory not found: {path}"}
-            return {"directory": path, "items": os.listdir(full_path)}
+            if not os.path.isdir(path):
+                return {"error": f"Not a directory: {path}"}
 
-        return {"error": f"Unknown action '{action}'"}
+            try:
+                items = os.listdir(path)
+                return {"directory": path, "items": items}
+            except Exception as e:
+                return {"error": str(e)}
 
-# Required for SkillEngine auto-loading
-tool = FileTool()
+        return {"error": f"Unknown action: {action}"}
