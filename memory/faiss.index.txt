@@ -1,3 +1,0 @@
-Agents help automate repetitive workflows.
-Vector databases store embeddings for semantic search.
-Python is great for building AI automation systems.

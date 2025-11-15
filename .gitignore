@@ -1,31 +1,133 @@
-# Python cache
+# -------------------------
+# PYTHON / ENVIRONMENTS
+# -------------------------
 __pycache__/
 *.pyc
 *.pyo
-
-# Virtual environments
+*.pyd
+*.so
+.env
 .venv/
 venv/
 env/
+ENV/
+*.env
 
-# Heavy AI models (DO NOT COMMIT)
-*.bin
-*.pt
-*.ckpt
-*.safetensors
-*.pth
-*.index
-
-# HuggingFace / Transformers cached models
-**/sentence-transformers/
-**/transformers/
-**/torch/
-
-# FAISS indexes
-*.faiss
-
-# CUDA / NVIDIA libraries accidentally downloaded
-nvidia-*/
-
-# VSCode settings
+# VS Code
 .vscode/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# -------------------------
+# BUILD / DIST
+# -------------------------
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# -------------------------
+# LOGS / OUTPUT
+# -------------------------
+logs/
+*.log
+*.out
+*.err
+run_history/
+agent_logs/
+memory_logs/
+debug_logs/
+
+# -------------------------
+# AGENT FILES / MEMORY
+# -------------------------
+memory/
+memory_buffer/
+agent_memory/
+scratchpad/
+workspace/
+tmp/
+temp/
+cache/
+**/cache/
+
+# Vector stores (FAISS, Chroma, Pinecone local)
+*.index
+*.faiss
+*.hnsw
+*.pq
+*.npy
+vector_store/
+vector_db/
+chroma/
+chroma_db/
+
+# -------------------------
+# MODELS / LLM FILES
+# -------------------------
+models/
+model/
+local_models/
+*.bin
+*.ckpt
+*.pt
+*.safetensors
+*.onnx
+*.tflite
+*.pb
+*.model
+*.jsonl
+
+# HuggingFace caches
+~/.cache/huggingface/
+huggingface/
+huggingface_cache/
+**/huggingface/
+
+# Torch caches
+~/.cache/torch/
+torch_cache/
+
+# Sentence-transformers models
+**/sentence-transformers/
+sentence-transformers/
+
+# -------------------------
+# EMBEDDINGS / DATA
+# -------------------------
+embeddings/
+embeddings_cache/
+*.emb
+*.vec
+*.pkl
+
+# Datasets
+data/
+dataset/
+datasets/
+*.csv
+*.tsv
+*.parquet
+*.db
+
+# -------------------------
+# NODE / JS (if UI added)
+# -------------------------
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# -------------------------
+# GIT
+# -------------------------
+*.orig
+*.rej
+*.patch
+
+# -------------------------
+# OTHER
+# -------------------------
+.DS_Store
+Thumbs.db
