@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# HuggingFace / Torch massive caches
+**/models/
+**/transformers/
+**/torch/
+**/sentence-transformers/
+~/.cache/
+
+# Data / weights
+*.bin
+*.ckpt
+*.safetensors
+*.pt
+*.h5
+*.index
+
+# FAISS indexes
+*.faiss
+*.index
+
+# VS Code
+.vscode/
