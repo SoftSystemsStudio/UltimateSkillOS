@@ -1,32 +1,31 @@
-# Python
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
 
 # Virtual environments
 .venv/
 venv/
 env/
 
-# HuggingFace / Torch massive caches
-**/models/
-**/transformers/
-**/torch/
-**/sentence-transformers/
-~/.cache/
-
-# Data / weights
+# Heavy AI models (DO NOT COMMIT)
 *.bin
+*.pt
 *.ckpt
 *.safetensors
-*.pt
-*.h5
+*.pth
 *.index
+
+# HuggingFace / Transformers cached models
+**/sentence-transformers/
+**/transformers/
+**/torch/
 
 # FAISS indexes
 *.faiss
-*.index
 
-# VS Code
+# CUDA / NVIDIA libraries accidentally downloaded
+nvidia-*/
+
+# VSCode settings
 .vscode/
