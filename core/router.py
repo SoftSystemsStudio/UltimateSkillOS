@@ -1,10 +1,10 @@
-# router.py
-class Router:
-    def __init__(self, loader):
-        self.loader = loader
+from skills.research import ResearchSkill
 
-    def route(self, skill_name, query):
-        skill = self.loader.get_skill(skill_name)
-        if not skill:
-            return f"Skill '{skill_name}' not found."
-        return skill.run(query)
+class SkillRouter:
+    def __init__(self):
+        self.skills = {
+            "research": ResearchSkill(),
+        }
+
+    def get(self, name: str):
+        return self.skills.get(name)
