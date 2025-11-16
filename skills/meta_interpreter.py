@@ -2,17 +2,10 @@ from pathlib import Path
 import re
 import os
 
-try:
-    from skill_engine.base import SkillTool
-except Exception:
-    class SkillTool:
-        name = ""
-        description = ""
-        def run(self, params):
-            raise NotImplementedError
+from skill_engine.base import BaseSkill
 
 
-class MetaInterpreterTool(SkillTool):
+class MetaInterpreterTool(BaseSkill):
     name = "meta_interpreter"
     description = "Reads meta-skill markdown files and generates a plan + decomposition."
 

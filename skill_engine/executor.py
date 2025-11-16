@@ -1,3 +1,6 @@
+"""
+Task executor - coordinates routing, skills, and memory for agent tasks.
+"""
 from core.router import Router
 from skill_engine.engine import SkillEngine
 from skill_engine.memory.memory_manager import MemoryManager

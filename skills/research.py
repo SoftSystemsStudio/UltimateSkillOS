@@ -4,7 +4,7 @@ import os
 
 # Optional: import Tavily only when used to avoid import errors on machines without it
 try:
-    from tavily import TavilyClient
+    from tavily import TavilyClient  # type: ignore
     TAVILY_AVAILABLE = True
 except Exception:
     TAVILY_AVAILABLE = False
