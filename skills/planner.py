@@ -1,8 +1,8 @@
-
 from skill_engine.base import BaseSkill
 from core.interfaces import Planner
 from pydantic import BaseModel
 from skill_engine.domain import SkillInput, SkillOutput
+from some_llm_library import LLMClient  # Hypothetical LLM client for planning
 
 class PlannerInput(BaseModel):
     goal: str
@@ -20,9 +20,18 @@ class PlannerSkill(BaseSkill, Planner):
     output_schema = PlannerOutput
     sla = None
 
+    def __init__(self):
+        super().__init__()
+        self.llm_client = LLMClient()  # Initialize the LLM client
+
     def plan(self, goal: str, context: dict) -> list:
-        # Dummy planner: break goal into steps by splitting sentences
-        return [s.strip() for s in goal.split('.') if s.strip()]
+        # Use LLM to generate a plan based on the goal
+        try:
+            response = self.llm_client.generate_plan(goal)
+            return response.get("steps", [])
+        except Exception as e:
+            self.logger.error(f"Failed to generate plan: {e}")
+            return []
 
     def invoke(self, input_data: SkillInput, context) -> SkillOutput:
         goal = input_data.payload.get("goal", "")
@@ -31,6 +40,7 @@ class PlannerSkill(BaseSkill, Planner):
             plan = self.plan(goal, context)
         results = []
         for step in plan:
+            # Hypothetically execute each step (placeholder logic)
             results.append({"step": step, "status": "ok"})
         output = {
             "executed_steps": len(results),

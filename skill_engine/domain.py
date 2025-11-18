@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 from datetime import datetime
+from skill_engine.router import Router
+from skill_engine.memory.facade import MemoryFacade
 
 # ============================================================================
 # Skill Identification & Versioning
@@ -274,3 +276,75 @@ class AgentResult:
     def get_failed_steps(self) -> list[StepResult]:
         """Get all steps that failed."""
         return [sr for sr in self.step_results if not sr.success]
+
+
+@dataclass
+class Agent:
+    """
+    The Agent class orchestrates the execution of plans by invoking skills
+    or using the Router for sub-tasks.
+    """
+    router: Router
+    memory: MemoryFacade
+
+    def execute_plan(self, plan: AgentPlan) -> AgentResult:
+        """
+        Execute a given plan step-by-step.
+
+        Args:
+            plan (AgentPlan): The plan to execute.
+
+        Returns:
+            AgentResult: The result of the plan execution.
+        """
+        step_results = []
+        memory_context = self.memory.retrieve_context(plan.goal)
+        total_time = 0.0
+
+        for step in plan.steps:
+            start_time = datetime.utcnow()
+            try:
+                # Inject memory context into the step input
+                step.input_data.update(memory_context)
+
+                # Use the Router to invoke the skill
+                skill_output = self.router.route(
+                    skill_name=step.skill_name,
+                    input_data=SkillInput(
+                        payload=step.input_data,
+                        trace_id=plan.plan_id
+                    )
+                )
+
+                execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                step_results.append(StepResult(
+                    step_id=step.step_id,
+                    success=True,
+                    output=skill_output,
+                    execution_time_ms=execution_time
+                ))
+                total_time += execution_time
+
+            except Exception as e:
+                execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                step_results.append(StepResult(
+                    step_id=step.step_id,
+                    success=False,
+                    error=str(e),
+                    execution_time_ms=execution_time
+                ))
+                total_time += execution_time
+
+        # Determine overall status
+        status = "success" if all(sr.success for sr in step_results) else "partial"
+        final_answer = step_results[-1].output.payload if step_results and step_results[-1].success else None
+
+        return AgentResult(
+            plan_id=plan.plan_id,
+            status=status,
+            final_answer=final_answer,
+            step_results=step_results,
+            total_time_ms=total_time,
+            steps_completed=sum(1 for sr in step_results if sr.success),
+            memory_used=memory_context
+        )

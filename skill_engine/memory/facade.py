@@ -179,3 +179,20 @@ class MemoryFacade:
             "long_term_count": self.long_term.count(),
             "scratchpad": self.scratchpad.to_dict(),
         }
+
+    def retrieve_context(self, goal: str, top_k: int = 3) -> dict[str, Any]:
+        """
+        Retrieve relevant memory context for a specific goal.
+
+        Args:
+            goal: The goal or query to retrieve context for.
+            top_k: Number of top relevant memory entries to retrieve.
+
+        Returns:
+            A dictionary of relevant memory entries.
+        """
+        relevant_memories = self.search(goal, tier="all", top_k=top_k)
+        context = {}
+        for i, memory in enumerate(relevant_memories):
+            context[f"memory_{i+1}"] = memory.content
+        return context
