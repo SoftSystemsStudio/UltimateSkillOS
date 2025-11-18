@@ -54,6 +54,8 @@ class SkillSelector:
         "planning": ["planner", "reflection"],
         "summarization": ["summarize", "reflection"],
         "reflection": ["reflection", "summarize"],
+        "question_answering": ["question_answering", "research"],
+        "general_query": ["question_answering", "summarize"],
     }
 
     # Skill compatibility rules
@@ -87,6 +89,11 @@ class SkillSelector:
             "cannot_follow": ["reflection"],
             "priority": 6,
             "cost": 1.5,
+        },
+        "question_answering": {
+            "cannot_follow": [],
+            "priority": 10,
+            "cost": 1.0,
         },
     }
 

@@ -253,12 +253,12 @@ class Router:
                 "reasoning": "Keyword match: summarization",
             }
 
-        # Default fallback
+        # Default fallback - use QA skill for general questions
         return {
-            "use_skill": "summarize",
-            "confidence": 0.5,
-            "params": {"text": query},
-            "reasoning": "Keyword fallback: no clear match",
+            "use_skill": "question_answering",
+            "confidence": 0.7,
+            "params": {"query": query, "text": query},
+            "reasoning": "Default fallback: general question",
         }
 
     def _route_hybrid(self, query: str) -> Dict[str, Any]:
@@ -284,6 +284,12 @@ class Router:
         logger.debug(
             f"Selected skill: {selection.primary_skill} ({selection.confidence:.2f})"
         )
+        
+        # If no clear match and query looks like a question, use QA skill
+        if selection.confidence < 0.6 and any(word in query.lower() for word in ['what', 'how', 'why', 'when', 'where', 'who', 'is', 'are', 'can', 'does', 'tell me', 'explain']):
+            selection.primary_skill = "question_answering"
+            selection.confidence = 0.8
+            selection.reasoning = "Question detected, using QA skill"
 
         # Step 3: Optionally refine with semantic search
         semantic_matches = self.skill_embedding_index.search(
@@ -353,6 +359,8 @@ class Router:
             params = {"command": query, "text": query}
         elif skill_name == "planner":
             params = {"goal": query}
+        elif skill_name == "question_answering":
+            params = {"query": query, "text": query}
         elif skill_name in ("summarize", "reflection"):
             params = {"text": query}
 
