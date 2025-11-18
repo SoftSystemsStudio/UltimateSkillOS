@@ -277,6 +277,25 @@ class AgentResult:
         """Get all steps that failed."""
         return [sr for sr in self.step_results if not sr.success]
 
+    def to_trace(self) -> str:
+        """
+        Generate a traceable reasoning chain for the agent's execution.
+
+        Returns:
+            str: A formatted string showing the reasoning chain.
+        """
+        trace_lines = [f"Plan ID: {self.plan_id}", f"Status: {self.status}"]
+        for step_result in self.step_results:
+            trace_lines.append(f"Step ID: {step_result.step_id}")
+            trace_lines.append(f"  Success: {step_result.success}")
+            if step_result.success:
+                trace_lines.append(f"  Output: {step_result.output.payload}")
+            else:
+                trace_lines.append(f"  Error: {step_result.error}")
+            trace_lines.append(f"  Execution Time: {step_result.execution_time_ms} ms")
+        trace_lines.append(f"Final Answer: {self.final_answer}")
+        return "\n".join(trace_lines)
+
 
 @dataclass
 class Agent:

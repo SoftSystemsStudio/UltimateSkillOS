@@ -133,6 +133,17 @@ class SkillEngine:
                 ))
                 total_time += execution_time
 
+        # Check if max_steps is reached without a final answer
+        if not any(sr.success for sr in step_results):
+            return AgentResult(
+                plan_id=plan.plan_id,
+                status="failed",
+                final_answer="Unable to complete the task within the given steps.",
+                step_results=step_results,
+                total_time_ms=total_time,
+                steps_completed=sum(1 for sr in step_results if sr.success)
+            )
+
         # Determine overall status
         status = "success" if all(sr.success for sr in step_results) else "partial"
         return AgentResult(
