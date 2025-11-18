@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
@@ -13,22 +14,25 @@ class RunRequest(BaseModel):
     options: Optional[Dict[str, Any]] = {}
 
 
-app = FastAPI(title="UltimateSkillOS API")
-
-
-@app.on_event("startup")
-async def create_agent() -> None:
-    # Lazily construct an Agent on startup. This avoids side-effects at import time.
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    # Startup: lazily construct an Agent. This avoids side-effects at import time.
     try:
         agent = Agent.from_env()
+        app.state._agent_error = None
     except Exception as e:
         # If the Agent cannot be constructed, keep app running but record the error.
         # The endpoint will return 503 if agent is not available.
-        app.state._agent_error = str(e)
         app.state.agent = None
+        app.state._agent_error = str(e)
+        yield
         return
     app.state.agent = agent
-    app.state._agent_error = None
+    yield
+    # Cleanup: no shutdown logic needed
+
+
+app = FastAPI(title="UltimateSkillOS API", lifespan=lifespan)
 
 
 @app.post("/run")

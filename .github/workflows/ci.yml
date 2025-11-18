@@ -48,6 +48,16 @@ jobs:
   integration-tests:
     runs-on: ubuntu-latest
     if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_integration == 'true') || env.RUN_INTEGRATION == '1' }}
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -59,6 +69,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Run integration tests
+        env:
+          SKILLOS_CIRCUIT_REDIS_URL: redis://localhost:6379/0
         run: |
           export PYTHONPATH=.
           pytest -q tests/integration -q
