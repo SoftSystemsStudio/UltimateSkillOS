@@ -13,3 +13,5 @@ Available skills:
 
 All skills inherit from BaseSkill and are auto-discovered by SkillEngine.
 """
+
+# Removed explicit import of ExampleSkill to avoid circular import issues.

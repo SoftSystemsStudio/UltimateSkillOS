@@ -12,8 +12,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 from datetime import datetime
-from skill_engine.router import Router
+from core.router import Router
 from skill_engine.memory.facade import MemoryFacade
+from pydantic import BaseModel
 
 # ============================================================================
 # Skill Identification & Versioning
@@ -389,3 +390,15 @@ class Agent:
             steps_completed=sum(1 for sr in step_results if sr.success),
             memory_used=memory_context
         )
+
+
+class ReflectionFeedback(BaseModel):
+    """
+    Schema for reflection feedback.
+
+    Attributes:
+        adjustments (List[Dict[str, Any]]): Suggested adjustments to improve the answer.
+        notes (str): Additional notes or observations from the reflection.
+    """
+    adjustments: List[Dict[str, Any]]
+    notes: str

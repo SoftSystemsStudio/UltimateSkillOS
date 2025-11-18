@@ -6,11 +6,37 @@ import importlib
 import logging
 import pkgutil
 from typing import Any, Callable, Dict, List, Mapping
+from functools import wraps
+from datetime import datetime, timezone
 
 import skills
 from skill_engine.base import BaseSkill
+from skill_engine.domain import StepResult, AgentResult, SkillOutput
 
 logger = logging.getLogger(__name__)
+
+
+class ReflectionDecorator:
+    """
+    A decorator to wrap skill execution with a reflection step.
+    """
+    def __init__(self, reflection_skill_name: str):
+        self.reflection_skill_name = reflection_skill_name
+
+    def __call__(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Execute the original function
+            result = func(*args, **kwargs)
+
+            # Perform reflection if the result contains a final answer
+            if isinstance(result, dict) and "final_answer" in result:
+                reflection_feedback = args[0].run(self.reflection_skill_name, {"answer": result["final_answer"]})
+                result["reflection_feedback"] = reflection_feedback
+
+            return result
+
+        return wrapper
 
 
 class SkillEngine:
@@ -85,9 +111,10 @@ class SkillEngine:
             return self.memory_factory(backend_type)
         return None
 
+    @ReflectionDecorator(reflection_skill_name="ReflectionSkill")
     def execute_plan(self, plan: AgentPlan) -> AgentResult:
         """
-        Execute a plan by invoking skills sequentially.
+        Execute a plan by invoking skills sequentially, with self-correction based on reflection feedback.
 
         Args:
             plan (AgentPlan): The plan to execute.
@@ -99,12 +126,13 @@ class SkillEngine:
         total_time = 0.0
 
         for step in plan.steps:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             try:
                 # Execute the skill
                 skill_output = self.run(step.skill_name, step.input_data)
+                logger.info(f"Skill '{step.skill_name}' output: {skill_output}")
 
-                execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
                 step_results.append(StepResult(
                     step_id=step.step_id,
                     success=True,
@@ -115,17 +143,31 @@ class SkillEngine:
 
                 # Check for early termination
                 if "final_answer" in skill_output:
+                    logger.info(f"Final answer detected: {skill_output['final_answer']}")
+                    # Perform reflection before returning the final answer
+                    reflection_feedback = self.run("ReflectionSkill", {"answer": skill_output["final_answer"]})
+                    skill_output["reflection_feedback"] = reflection_feedback
+
+                    # Apply self-correction if adjustments are suggested
+                    if reflection_feedback.get("adjustments"):
+                        autofix_output = self.run("AutofixSkill", {
+                            "reflection_feedback": reflection_feedback,
+                            "context": skill_output["final_answer"]
+                        })
+                        skill_output["autofix_output"] = autofix_output
+
                     return AgentResult(
                         plan_id=plan.plan_id,
                         status="success",
-                        final_answer=skill_output["final_answer"],
+                        final_answer=skill_output,  # Return the full output dict
                         step_results=step_results,
                         total_time_ms=total_time,
                         steps_completed=len(step_results)
                     )
 
             except Exception as e:
-                execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                logger.error(f"Error executing skill '{step.skill_name}': {e}")
+                execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
                 step_results.append(StepResult(
                     step_id=step.step_id,
                     success=False,

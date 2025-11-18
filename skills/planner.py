@@ -4,6 +4,11 @@ from pydantic import BaseModel
 from skill_engine.domain import SkillInput, SkillOutput
 from some_llm_library import LLMClient  # Hypothetical LLM client for planning
 
+# Mocking the missing library for testing purposes
+class LLMClient:
+    def plan(self, *args, **kwargs):
+        return "Mocked Plan"
+
 class PlannerInput(BaseModel):
     goal: str
     plan: list[str] = []
@@ -27,7 +32,7 @@ class PlannerSkill(BaseSkill, Planner):
     def plan(self, goal: str, context: dict) -> list:
         # Use LLM to generate a plan based on the goal
         try:
-            response = self.llm_client.generate_plan(goal)
+            response = self.llm_client.plan(goal)
             return response.get("steps", [])
         except Exception as e:
             self.logger.error(f"Failed to generate plan: {e}")

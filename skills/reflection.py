@@ -12,6 +12,7 @@ class ReflectionOutput(BaseModel):
     confidence: float
     reflection_score: float
     suggested_action: str
+    notes: str
 
 class ReflectionSkill(BaseSkill, Evaluator):
     name = "reflection"
@@ -26,25 +27,74 @@ class ReflectionSkill(BaseSkill, Evaluator):
         text = result.get("text", "")
         reflection_score = 100  # Start with a perfect score
 
-        if len(text) < 10:
-            issues.append("Text is very short.")
+        # Check for logical errors
+        if "error" in text.lower():
+            issues.append("Logical error detected in the answer.")
             reflection_score -= 30
-        if text.endswith("?"):
-            issues.append("Ends with uncertainty.")
+
+        # Check for missing information
+        if "missing" in text.lower():
+            issues.append("The answer is missing critical information.")
+            reflection_score -= 25
+
+        # Check for suboptimal phrasing
+        if len(text.split()) < 5:
+            issues.append("The answer is too brief and lacks detail.")
             reflection_score -= 20
 
         suggested_action = "None"
         if reflection_score < 50:
-            suggested_action = "Consider rephrasing or adding more detail."
+            suggested_action = "Revise the answer to address missing details and improve clarity."
 
         return {
             "text_evaluated": text,
             "issues_found": issues,
             "confidence": 0.8,
             "reflection_score": reflection_score,
-            "suggested_action": suggested_action
+            "suggested_action": suggested_action,
+            "notes": "Reflection completed. Issues: " + ", ".join(issues) if issues else "No issues found."
         }
 
     def invoke(self, input_data: SkillInput, context) -> SkillOutput:
         text = input_data.payload.get("text", "")
         return self.evaluate({"text": text}, context)
+
+class ReflectionSkill(BaseSkill):
+    name = "ReflectionSkill"
+
+    def _run(self, params: dict) -> dict:
+        text = params.get("answer", "")
+        issues = []
+        reflection_score = 100
+        adjustments = []
+        # Check for logical errors
+        if "error" in text.lower():
+            issues.append("Logical error detected in the answer.")
+            reflection_score -= 30
+        # Check for missing information
+        if "missing" in text.lower():
+            issues.append("The answer is missing critical information.")
+            reflection_score -= 25
+        # Check for suboptimal phrasing
+        if len(text.split()) < 5:
+            issues.append("The answer is too brief and lacks detail.")
+            reflection_score -= 20
+            adjustments.append({
+                "skill_name": "AutofixSkill",
+                "params": {
+                    "target": text,
+                    "replacement": text + " (expanded)"
+                }
+            })
+        suggested_action = "None"
+        if reflection_score < 50:
+            suggested_action = "Revise the answer to address missing details and improve clarity."
+        return {
+            "text_evaluated": text,
+            "issues_found": issues,
+            "confidence": 0.8,
+            "reflection_score": reflection_score,
+            "suggested_action": suggested_action,
+            "adjustments": adjustments,
+            "notes": "Reflection completed. Issues: " + ", ".join(issues) if issues else "No issues found."
+        }

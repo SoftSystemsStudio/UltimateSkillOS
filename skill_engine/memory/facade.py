@@ -238,3 +238,17 @@ class MemoryFacade:
             "timestamp": datetime.utcnow().isoformat()
         }
         self.long_term.add(json.dumps(feedback_entry), {"type": "human_feedback"})
+
+    def store_reflection_feedback(self, feedback: dict) -> None:
+        """
+        Store reflection feedback in long-term memory.
+
+        Args:
+            feedback (dict): The reflection feedback to store.
+        """
+        try:
+            # Assuming self.memory_backend is already initialized
+            self.memory_backend.store("reflection_feedback", feedback)
+            logger.info("Reflection feedback stored successfully.")
+        except Exception as e:
+            logger.error("Failed to store reflection feedback: %s", e)
