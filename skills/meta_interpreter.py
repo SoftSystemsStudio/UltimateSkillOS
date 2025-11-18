@@ -5,9 +5,27 @@ import os
 from skill_engine.base import BaseSkill
 
 
+from pydantic import BaseModel
+from skill_engine.domain import SkillInput, SkillOutput
+
+class MetaInterpreterInput(BaseModel):
+    task: str = ""
+
+class MetaInterpreterOutput(BaseModel):
+    task: str
+    decomposition: list
+    plan: list
+    used_files: list
+    confidence: float
+    error: str = ""
+
 class MetaInterpreterTool(BaseSkill):
     name = "meta_interpreter"
+    version = "1.0.0"
     description = "Reads meta-skill markdown files and generates a plan + decomposition."
+    input_schema = MetaInterpreterInput
+    output_schema = MetaInterpreterOutput
+    sla = None
 
     SEARCH_PATHS = [
         Path("meta"),
@@ -33,16 +51,12 @@ class MetaInterpreterTool(BaseSkill):
 
         for line in lines:
             stripped = line.strip()
-
             if stripped.startswith("#"):
                 headings.append(stripped.lstrip("# ").strip())
-
             elif re.match(r"^\d+\.\s+", stripped):
                 steps.append(re.sub(r"^\d+\.\s+", "", stripped))
-
             elif re.match(r"[-*+]\s+", stripped):
                 bullets.append(re.sub(r"[-*+]\s+", "", stripped))
-
         return {
             "path": str(filepath),
             "raw": text,
@@ -55,18 +69,15 @@ class MetaInterpreterTool(BaseSkill):
         text_words = re.findall(r"\w+", text.lower())
         if not text_words:
             return 0.0
-
         overlap = sum(1 for w in task_words if w in text_words)
         return overlap / len(set(text_words))
 
-    def run(self, params):
-        task = params.get("task") or params.get("query")
+    def invoke(self, input_data: SkillInput, context) -> SkillOutput:
+        task = input_data.payload.get("task", "")
         if not task:
             return {"error": "Missing 'task' parameter"}
-
         task_words = re.findall(r"\w+", task.lower())
         md_files = self._find_md_files()
-
         parsed = []
         for f in md_files:
             info = self._parse_md(f)
@@ -76,19 +87,15 @@ class MetaInterpreterTool(BaseSkill):
                 "score": s,
                 "concepts": info["headings"][:5] + info["bullets"][:5],
             })
-
         parsed_sorted = sorted(parsed, key=lambda x: x["score"], reverse=True)[:8]
-
         all_concepts = []
         for doc in parsed_sorted:
             for c in doc["concepts"]:
                 if c not in all_concepts:
                     all_concepts.append(c)
-
         decomposition = [
             f"Analyze concept: {c}" for c in all_concepts[:5]
         ]
-
         plan = [
             f"Goal: {task}",
             "1. Review top relevant meta documents.",
@@ -97,7 +104,6 @@ class MetaInterpreterTool(BaseSkill):
             "4. Assemble a structured plan.",
             "5. Validate results."
         ]
-
         return {
             "task": task,
             "decomposition": decomposition,
@@ -105,6 +111,5 @@ class MetaInterpreterTool(BaseSkill):
             "used_files": parsed_sorted,
             "confidence": 0.8
         }
-
 
 tool = MetaInterpreterTool()

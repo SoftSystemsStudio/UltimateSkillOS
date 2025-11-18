@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from skill_engine.resilience import registry, CircuitBreakerConfig
+from skill_engine.resilience import create_registry, CircuitBreakerConfig
 from skill_engine.domain import SkillInput
 from skill_engine.skill_base import RunContext
 

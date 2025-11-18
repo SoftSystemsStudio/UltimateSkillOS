@@ -8,23 +8,31 @@ from skill_engine.base import BaseSkill
 from skill_engine.memory.manager import get_memory_manager
 
 
+from pydantic import BaseModel
+from skill_engine.domain import SkillInput, SkillOutput
+
+class MemorySearchInput(BaseModel):
+    query: str = ""
+    k: int = 5
+
+class MemorySearchOutput(BaseModel):
+    query: str
+    matches: list
+    confidence: float
+    error: str = ""
+
 class MemorySearchSkill(BaseSkill):
-    """
-    Skill that queries the shared MemoryManager for relevant entries.
-    """
+    name = "memory_search"
+    version = "1.0.0"
+    description = "Searches the agent's memory for items relevant to the query."
+    input_schema = MemorySearchInput
+    output_schema = MemorySearchOutput
+    sla = None
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.name = "memory_search"
-        self.description = "Searches the agent's memory for items relevant to the query."
-
-    def run(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def invoke(self, input_data: SkillInput, context) -> SkillOutput:
         mm = get_memory_manager()
-
-        # Normalize query
-        query_raw: Any = params.get("query") or params.get("text") or ""
-        query = str(query_raw).strip()
-
+        query = input_data.payload.get("query", "")
+        k = int(input_data.payload.get("k", 5))
         if not query:
             return {
                 "error": "No query provided for memory_search.",
@@ -32,13 +40,7 @@ class MemorySearchSkill(BaseSkill):
                 "matches": [],
                 "confidence": 0.0,
             }
-
-        k = int(params.get("k", 5))
-
-        results: List[Dict[str, Any]] = mm.search(query, k=k)
-
-        # Shape results for the Agent:
-        #   matches: [{"text": ..., "score": ...}, ...]
+        results: list = mm.search(query, k=k)
         return {
             "query": query,
             "matches": results,

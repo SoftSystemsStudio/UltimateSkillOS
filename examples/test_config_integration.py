@@ -14,6 +14,9 @@ print("=" * 60)
 print("Test 1: Load Default Configuration")
 print("=" * 60)
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 from config import load_config
 
 config = load_config()
