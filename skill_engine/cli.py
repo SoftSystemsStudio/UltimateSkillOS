@@ -1,3 +1,67 @@
+"""
+Command-line diagnostics for UltimateSkillOS.
+
+Usage:
+  python -m skill_engine.cli trace-run "some prompt"
+
+Prints a human-auditable trace of the plan, steps, and results.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+
+from skill_engine.agent import Agent
+from skill_engine.resilience import registry as circuit_registry
+
+
+def trace_run_command(args: argparse.Namespace) -> int:
+    prompt = args.prompt
+    agent = Agent.from_env()
+    result = agent.run(prompt, verbose=True)
+
+    # Pretty print the result
+    print("\n=== AGENT TRACE ===\n")
+    print(json.dumps(result.to_dict(), indent=2, default=str))
+    print("\n===================\n")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="skill_engine.cli")
+    sub = parser.add_subparsers(dest="cmd")
+
+    p = sub.add_parser("trace-run", help="Execute a prompt and print trace")
+    p.add_argument("prompt", type=str, help="Prompt or task to run")
+
+    pc = sub.add_parser("inspect-circuit", help="Inspect circuit breaker state for a skill key")
+    pc.add_argument("skill", type=str, help="Skill name or key to inspect")
+
+    parsed = parser.parse_args(argv)
+    if parsed.cmd == "trace-run":
+        return trace_run_command(parsed)
+    if parsed.cmd == "inspect-circuit":
+        key = parsed.skill
+        state = None
+        try:
+            state = circuit_registry.get_state(key)
+        except Exception as e:
+            print(f"Error fetching circuit state: {e}")
+            return 2
+
+        if not state:
+            print(f"No circuit state found for '{key}'")
+            return 0
+        print(json.dumps(state, indent=2, default=str))
+        return 0
+
+    parser.print_help()
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
 # skill_engine/cli.py
 
 from __future__ import annotations

@@ -13,6 +13,15 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, Literal
 
+
+@dataclass
+class CircuitBreakerConfig:
+    """Defaults for per-skill circuit-breaker behavior."""
+
+    failure_threshold: int = 5
+    recovery_timeout_seconds: int = 30
+    half_open_trial_requests: int = 1
+
 __all__ = [
     "LoggingConfig",
     "MemoryConfig",
@@ -65,6 +74,7 @@ class AgentConfig:
     verbose: bool = False
     enable_memory: bool = True
     routing: RoutingConfig = field(default_factory=RoutingConfig)
+    circuit_breaker: CircuitBreakerConfig = field(default_factory=CircuitBreakerConfig)
 
 
 @dataclass
@@ -98,6 +108,11 @@ class AppConfig:
                     "use_llm_for_intent": self.agent.routing.use_llm_for_intent,
                     "keyword_fallback": self.agent.routing.keyword_fallback,
                     "embedding_threshold": self.agent.routing.embedding_threshold,
+                },
+                "circuit_breaker": {
+                    "failure_threshold": self.agent.circuit_breaker.failure_threshold,
+                    "recovery_timeout_seconds": self.agent.circuit_breaker.recovery_timeout_seconds,
+                    "half_open_trial_requests": self.agent.circuit_breaker.half_open_trial_requests,
                 },
             },
             "logging": {

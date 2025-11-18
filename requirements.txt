@@ -19,6 +19,7 @@ pyyaml>=6.0  # YAML support (optional)
 
 # Optional Dependencies (for extended features)
 # tavily==1.0.0  # Uncomment for web research capability
+redis>=4.0.0  # Optional: Redis client for circuit-breaker persistence (set SKILLOS_CIRCUIT_REDIS_URL)
 
 # Development & Testing
 pytest>=7.0.0

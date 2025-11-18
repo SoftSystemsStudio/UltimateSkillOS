@@ -15,6 +15,8 @@ from skill_engine.registry import get_global_registry, SkillRegistry
 from skill_engine.skill_base import RunContext
 from skill_engine.memory.facade import MemoryFacade
 from core.router import Router
+from core.logging import get_logger as get_structured_logger
+from skill_engine.skill_base import safe_invoke
 
 logger = logging.getLogger(__name__)
 
@@ -164,25 +166,30 @@ class Agent:
                     result.add_step_result(step_result)
                     break
 
-                # Create execution context with memory facade
+                # Create execution context with memory facade and structured logger
+                step_logger = get_structured_logger(f"skill.{skill_name}", trace_id=trace_id, step_id=step_id, correlation_id=plan_id)
                 context = RunContext(
                     trace_id=trace_id,
                     correlation_id=plan_id,
                     memory_facade=self.memory_facade,
+                    logger=step_logger,
                 )
 
-                # Execute skill
+                # Execute skill (using safe_invoke to provide timeout/retries)
                 try:
                     skill_input = SkillInput(
                         payload=params, trace_id=trace_id, correlation_id=plan_id
                     )
 
-                    skill_output = self.engine.run(skill_name, dict(params))
+                    # Lookup concrete skill object from engine
+                    skill_obj = self.engine.skills.get(skill_name)
+                    if skill_obj is None:
+                        raise RuntimeError(f"Skill '{skill_name}' not found in engine")
+
+                    skill_output = safe_invoke(skill_obj, skill_input, context)
 
                     if verbose:
-                        logger.info(
-                            f"Skill '{skill_name}' completed: {skill_output}"
-                        )
+                        logger.info(f"Skill '{skill_name}' completed")
 
                     step_result = StepResult(
                         step_id=step_id,
@@ -218,16 +225,16 @@ class Agent:
                     try:
                         if "summary" in structured_obs:
                             self.memory_facade.add(
-                                str(structured_obs["summary"]), tier="long_term"
+                                str(structured_obs["summary"]), tier="long_term", metadata={"trace_id": trace_id, "step_id": step_id}
                             )
                         elif "answer" in structured_obs:
                             self.memory_facade.add(
-                                str(structured_obs["answer"]), tier="long_term"
+                                str(structured_obs["answer"]), tier="long_term", metadata={"trace_id": trace_id, "step_id": step_id}
                             )
                         else:
                             text_val = params.get("text")
                             if isinstance(text_val, str):
-                                self.memory_facade.add(text_val, tier="long_term")
+                                self.memory_facade.add(text_val, tier="long_term", metadata={"trace_id": trace_id, "step_id": step_id})
                     except Exception as e:
                         logger.warning(f"Failed to write to memory: {e}")
 
@@ -285,7 +292,7 @@ class Agent:
 
                     if answer_text:
                         if self.config.enable_memory:
-                            self.memory_facade.add(answer_text, tier="long_term")
+                            self.memory_facade.add(answer_text, tier="long_term", metadata={"trace_id": trace_id, "step_id": step_id})
                         result.status = "success"
                         result.final_answer = answer_text
                         if self.config.enable_memory:
@@ -296,7 +303,7 @@ class Agent:
                         "I could not find anything in memory that answers that."
                     )
                     if self.config.enable_memory:
-                        self.memory_facade.add(no_match_answer, tier="long_term")
+                        self.memory_facade.add(no_match_answer, tier="long_term", metadata={"trace_id": trace_id, "step_id": step_id})
                     result.status = "partial"
                     result.final_answer = no_match_answer
                     if self.config.enable_memory:
