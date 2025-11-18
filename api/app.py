@@ -1,6 +1,9 @@
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
+import os
 
 from skill_engine.agent import Agent as RuntimeAgent
 
@@ -38,3 +41,12 @@ async def chat(input: QueryInput, request: Request):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/")
+async def root():
+    """Serve the main web UI"""
+    webui_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "webui", "index.html")
+    if os.path.exists(webui_path):
+        return FileResponse(webui_path)
+    raise HTTPException(status_code=404, detail="Web UI not found")
