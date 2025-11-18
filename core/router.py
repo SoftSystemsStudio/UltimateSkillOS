@@ -271,6 +271,24 @@ class Router:
         Returns:
             Routing decision.
         """
+        # Quick check: if query is clearly a question, route to QA directly
+        lowered = query.lower().strip()
+        question_words = ['what', 'how', 'why', 'when', 'where', 'who', 'which', 'whom', 'whose']
+        question_patterns = ['is ', 'are ', 'can ', 'does ', 'do ', 'will ', 'would ', 'could ', 'should ', 'tell me', 'explain']
+        
+        starts_with_question = any(lowered.startswith(word) for word in question_words)
+        has_question_pattern = any(pattern in lowered for pattern in question_patterns)
+        ends_with_question_mark = query.strip().endswith('?')
+        
+        if starts_with_question or ends_with_question_mark or (has_question_pattern and len(query.split()) < 15):
+            return {
+                "use_skill": "question_answering",
+                "confidence": 0.9,
+                "params": {"query": query, "text": query},
+                "reasoning": "Question detected, routing to QA skill",
+                "intent": "question_answering",
+            }
+        
         # Step 1: Classify intent
         intent = self.intent_classifier.classify(query)
         logger.debug(f"Classified intent: {intent.primary} ({intent.confidence:.2f})")
@@ -284,12 +302,6 @@ class Router:
         logger.debug(
             f"Selected skill: {selection.primary_skill} ({selection.confidence:.2f})"
         )
-        
-        # If no clear match and query looks like a question, use QA skill
-        if selection.confidence < 0.6 and any(word in query.lower() for word in ['what', 'how', 'why', 'when', 'where', 'who', 'is', 'are', 'can', 'does', 'tell me', 'explain']):
-            selection.primary_skill = "question_answering"
-            selection.confidence = 0.8
-            selection.reasoning = "Question detected, using QA skill"
 
         # Step 3: Optionally refine with semantic search
         semantic_matches = self.skill_embedding_index.search(
