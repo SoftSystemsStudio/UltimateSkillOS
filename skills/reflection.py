@@ -1,6 +1,8 @@
-from skill_engine.base import BaseSkill
 
-class ReflectionSkill(BaseSkill):
+from skill_engine.base import BaseSkill
+from core.interfaces import Evaluator
+
+class ReflectionSkill(BaseSkill, Evaluator):
     name = "reflection"
 
     def run(self, params: dict):

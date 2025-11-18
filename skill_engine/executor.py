@@ -1,46 +1,32 @@
 """
 Task executor - coordinates routing, skills, and memory for agent tasks.
 """
-from core.router import Router
-from skill_engine.engine import SkillEngine
-from skill_engine.memory.memory_manager import MemoryManager
+
+from skill_engine.agent import Agent
+from config import AgentConfig, load_config
 
 class TaskExecutor:
     """
-    Main agent – uses router, skills, and persistent memory.
+    Unified agent executor – uses Agent loop for both single-step and multi-step tasks.
     """
 
-    def __init__(self):
-        self.engine = SkillEngine()
-        self.router = Router()
-        self.memory = MemoryManager()
+    def __init__(self, config: AgentConfig = None):
+        if config is None:
+            app_config = load_config()
+            config = app_config.agent
+        self.agent = Agent(config=config)
 
-    def run(self, text: str):
-        # Store input
-        self.memory.add(text)
-
-        # Retrieve memory
-        related = self.memory.search(text)
-        memory_context = [m["text"] for m in related]
-
-        # Route
-        route = self.router.route(text)
-        skill = route["use_skill"]
-        params = route["params"]
-
-        # Inject memory into params
-        params["memory_context"] = memory_context
-
-        # Execute skill
-        result = self.engine.run(skill, params)
-
-        # Store result
-        if isinstance(result, dict):
-            self.memory.add(str(result))
-
+    def run(self, text: str, max_steps: int = 1):
+        """
+        Run a task using the unified Agent loop.
+        """
+        result = self.agent.run(text, max_steps=max_steps)
         return {
             "input": text,
-            "selected_skill": skill,
-            "context_used": memory_context,
-            "result": result
+            "result": result.final_answer,
+            "status": result.status,
+            "steps_taken": result.metadata.get("steps_taken"),
+            "trace_id": result.metadata.get("trace_id"),
+            "plan_id": result.metadata.get("plan_id"),
+            "memory_used": getattr(result, "memory_used", None)
         }

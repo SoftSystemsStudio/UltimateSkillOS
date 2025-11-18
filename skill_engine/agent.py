@@ -62,6 +62,23 @@ class Agent:
             logger.warning(f"Failed to initialize router with config: {e}, using default")
             self.router = Router()
 
+        # Event hooks: observer registry
+        self._observers = {}
+
+    def subscribe(self, event_name: str, callback):
+        """Subscribe a callback to an event."""
+        if event_name not in self._observers:
+            self._observers[event_name] = []
+        self._observers[event_name].append(callback)
+
+    def publish(self, event_name: str, **kwargs):
+        """Publish an event to all observers."""
+        for cb in self._observers.get(event_name, []):
+            try:
+                cb(**kwargs)
+            except Exception as e:
+                logger.warning(f"Observer callback error for event '{event_name}': {e}")
+
     @staticmethod
     def from_env(
         config_path: str | None = None,
@@ -213,6 +230,9 @@ class Agent:
                     step_results.append(step_result)
                     result.add_step_result(step_result)
 
+                    # Publish event: skill_executed
+                    self.publish("skill_executed", skill_name=skill_name, step_id=step_id, output=skill_output, params=params)
+
                 except Exception as e:
                     logger.error(f"Skill execution failed at step {step_num}: {e}")
                     step_result = StepResult(
@@ -224,6 +244,8 @@ class Agent:
                     )
                     step_results.append(step_result)
                     result.add_step_result(step_result)
+                    # Publish event: skill_failed
+                    self.publish("skill_failed", skill_name=skill_name, step_id=step_id, error=str(e), params=params)
                     break
 
                 # Extract observation
@@ -261,6 +283,8 @@ class Agent:
                     result.final_answer = final_answer
                     if self.config.enable_memory:
                         result.memory_used = self.memory_facade.recall_context(task)
+                    # Publish event: step_completed
+                    self.publish("step_completed", step_id=step_id, final_answer=final_answer, result=result)
                     break
 
                 # Termination: memory_search skill
@@ -308,6 +332,8 @@ class Agent:
                         result.final_answer = answer_text
                         if self.config.enable_memory:
                             result.memory_used = self.memory_facade.recall_context(task)
+                        # Publish event: step_completed
+                        self.publish("step_completed", step_id=step_id, final_answer=answer_text, result=result)
                         break
 
                     no_match_answer = (
@@ -319,6 +345,8 @@ class Agent:
                     result.final_answer = no_match_answer
                     if self.config.enable_memory:
                         result.memory_used = self.memory_facade.recall_context(task)
+                    # Publish event: step_completed
+                    self.publish("step_completed", step_id=step_id, final_answer=no_match_answer, result=result)
                     break
 
                 # Default: propagate observation into next query
@@ -330,12 +358,16 @@ class Agent:
                 result.final_answer = query
                 if self.config.enable_memory:
                     result.memory_used = self.memory_facade.recall_context(task)
+            # Publish event: task_finished
+            self.publish("task_finished", plan_id=plan_id, result=result)
 
         except Exception as e:
             logger.exception(f"Unexpected error during agent execution: {e}")
             result.status = "failed"
             result.final_answer = None
             result.metadata["error"] = str(e)
+            # Publish event: task_failed
+            self.publish("task_failed", plan_id=plan_id, error=str(e), result=result)
 
         finally:
             # Finalize result

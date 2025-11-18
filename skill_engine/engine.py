@@ -19,10 +19,13 @@ class SkillEngine:
 
     - Discovers all modules under the `skills` package.
     - Registers all subclasses of BaseSkill with a non-empty `name`.
+    - Supports dynamic factory loading for planners and memory backends.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, planner_factory=None, memory_factory=None) -> None:
         self.skills: Dict[str, BaseSkill] = self.load_all_skills()
+        self.planner_factory = planner_factory
+        self.memory_factory = memory_factory
 
     def load_all_skills(self) -> Dict[str, BaseSkill]:
         loaded: Dict[str, BaseSkill] = {}
@@ -68,3 +71,15 @@ class SkillEngine:
 
         # Ensure we pass a plain dict to the skill implementation.
         return skill.run(dict(params))
+
+    def get_planner(self, planner_type: str = "default"):
+        """Get a planner instance from the factory."""
+        if self.planner_factory:
+            return self.planner_factory(planner_type)
+        return None
+
+    def get_memory_backend(self, backend_type: str = "default"):
+        """Get a memory backend instance from the factory."""
+        if self.memory_factory:
+            return self.memory_factory(backend_type)
+        return None

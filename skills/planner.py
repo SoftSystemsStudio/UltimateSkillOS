@@ -1,6 +1,8 @@
-from skill_engine.base import BaseSkill
 
-class PlannerSkill(BaseSkill):
+from skill_engine.base import BaseSkill
+from core.interfaces import Planner
+
+class PlannerSkill(BaseSkill, Planner):
     name = "planner"
 
     def run(self, params: dict):

@@ -36,6 +36,12 @@ verbose = false
 # Enable memory system integration
 enable_memory = true
 
+# Enable planning feature (Planner interface)
+enable_planning = true
+
+# Enable reflection/self-evaluation feature (Evaluator interface)
+enable_reflection = true
+
 [agent.routing]
 # Routing mode: "keyword" (fallback), "hybrid" (default), "llm_only" (future)
 mode = "hybrid"
