@@ -26,8 +26,13 @@ class SummarizeSkill(BaseSkill):
     def invoke(self, input_data: SkillInput, context) -> SkillOutput:
         text = input_data.payload.get("text", "")
         if not text:
-            return {"error": "Missing 'text' parameter"}
+            return {"error": "Missing 'text' parameter", "final_answer": "No text provided to summarize"}
         sentences = re.split(r'(?<=[.!?]) +', text.strip())
         top = sentences[:3]
         summary = " ".join(top).strip()
-        return {"summary": summary, "length": len(summary.split()), "confidence": 0.9}
+        return {
+            "summary": summary, 
+            "final_answer": summary,  # Add standard final_answer key
+            "length": len(summary.split()), 
+            "confidence": 0.9
+        }

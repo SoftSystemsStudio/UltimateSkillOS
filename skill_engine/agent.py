@@ -212,7 +212,14 @@ class Agent:
                     # Lookup concrete skill object from engine
                     skill_obj = self.engine.skills.get(skill_name)
                     if skill_obj is None:
-                        raise RuntimeError(f"Skill '{skill_name}' not found in engine")
+                        # Fallback: try question_answering if skill not found
+                        logger.warning(f"Skill '{skill_name}' not found, trying question_answering fallback")
+                        skill_obj = self.engine.skills.get("question_answering")
+                        if skill_obj is not None:
+                            skill_name = "question_answering"
+                            params = {"query": query, "text": query}
+                        else:
+                            raise RuntimeError(f"Skill '{skill_name}' not found and no fallback available")
 
                     skill_output = safe_invoke(skill_obj, skill_input, context)
 
@@ -256,36 +263,49 @@ class Agent:
                 # Memory write: store useful outcomes (if enabled)
                 if self.config.enable_memory and structured_obs is not None:
                     try:
-                        if "summary" in structured_obs:
+                        # Try multiple keys for the answer
+                        memory_text = (
+                            structured_obs.get("final_answer")
+                            or structured_obs.get("summary")
+                            or structured_obs.get("answer")
+                            or structured_obs.get("output")
+                        )
+                        
+                        if memory_text:
                             self.memory_facade.add(
-                                str(structured_obs["summary"]), tier="long_term", metadata={"trace_id": trace_id, "step_id": step_id}
-                            )
-                        elif "answer" in structured_obs:
-                            self.memory_facade.add(
-                                str(structured_obs["answer"]), tier="long_term", metadata={"trace_id": trace_id, "step_id": step_id}
+                                str(memory_text), 
+                                tier="long_term", 
+                                metadata={"trace_id": trace_id, "step_id": step_id}
                             )
                         else:
+                            # Fallback to input text
                             text_val = params.get("text")
                             if isinstance(text_val, str):
-                                self.memory_facade.add(text_val, tier="long_term", metadata={"trace_id": trace_id, "step_id": step_id})
+                                self.memory_facade.add(
+                                    text_val, 
+                                    tier="long_term", 
+                                    metadata={"trace_id": trace_id, "step_id": step_id}
+                                )
                     except Exception as e:
                         logger.warning(f"Failed to write to memory: {e}")
 
-                # Termination: explicit summary/answer
-                if (
-                    structured_obs is not None
-                    and ("summary" in structured_obs or "answer" in structured_obs)
-                ):
-                    final_answer = structured_obs.get("summary") or structured_obs.get(
-                        "answer"
+                # Termination: explicit summary/answer/final_answer
+                if structured_obs is not None:
+                    final_answer = (
+                        structured_obs.get("final_answer") 
+                        or structured_obs.get("summary") 
+                        or structured_obs.get("answer")
+                        or structured_obs.get("output")
                     )
-                    result.status = "success"
-                    result.final_answer = final_answer
-                    if self.config.enable_memory:
-                        result.memory_used = self.memory_facade.recall_context(task)
-                    # Publish event: step_completed
-                    self.publish("step_completed", step_id=step_id, final_answer=final_answer, result=result)
-                    break
+                    
+                    if final_answer:
+                        result.status = "success"
+                        result.final_answer = str(final_answer)
+                        if self.config.enable_memory:
+                            result.memory_used = self.memory_facade.recall_context(task)
+                        # Publish event: step_completed
+                        self.publish("step_completed", step_id=step_id, final_answer=final_answer, result=result)
+                        break
 
                 # Termination: memory_search skill
                 if (
