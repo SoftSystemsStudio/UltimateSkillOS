@@ -27,6 +27,7 @@ class RunContext:
     - Trace and correlation IDs for observability
     - Memory context from prior steps
     - Configuration and runtime parameters
+    - Unified memory access via facade
     """
 
     def __init__(
@@ -35,11 +36,13 @@ class RunContext:
         correlation_id: str | None = None,
         memory_context: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        memory_facade: Optional[Any] = None,
     ):
         self.trace_id = trace_id
         self.correlation_id = correlation_id
         self.memory_context = memory_context or []
         self.metadata = metadata or {}
+        self.memory = memory_facade  # MemoryFacade for skills to interact with memory
 
     def to_dict(self) -> dict[str, Any]:
         """Convert context to dictionary for serialization."""

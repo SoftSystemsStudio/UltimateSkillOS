@@ -43,7 +43,7 @@ debug_logs/
 # -------------------------
 # AGENT FILES / MEMORY
 # -------------------------
-memory/
+# Memory data files
 memory_buffer/
 agent_memory/
 scratchpad/
@@ -52,6 +52,9 @@ tmp/
 temp/
 cache/
 **/cache/
+
+# But DO include skill_engine/memory/ (source code)
+!/skill_engine/memory/
 
 # Vector stores (FAISS, Chroma, Pinecone local)
 *.index
