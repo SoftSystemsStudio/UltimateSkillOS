@@ -21,6 +21,10 @@ pyyaml>=6.0  # YAML support (optional)
 # tavily==1.0.0  # Uncomment for web research capability
 redis>=4.0.0  # Optional: Redis client for circuit-breaker persistence (set SKILLOS_CIRCUIT_REDIS_URL)
 
+# HTTP API (optional)
+fastapi>=0.95.0
+uvicorn[standard]>=0.22.0
+
 # Development & Testing
 pytest>=7.0.0
 black>=23.0.0
