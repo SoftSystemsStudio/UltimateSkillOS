@@ -1,0 +1,63 @@
+# UltimateSkillOS Configuration Template (YAML format)
+# Copy to config.yml and customize for your environment
+
+memory:
+  # Embedding model for semantic search
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  
+  # Embedding dimension (384 for all-MiniLM-L6-v2)
+  embedding_dim: 384
+  
+  # Number of top results to return in memory searches
+  top_k: 3
+  
+  # Short-term memory capacity (number of records)
+  short_term_capacity: 100
+  
+  # Database path for long-term memory metadata
+  long_term_db_path: ".cache/ultimate_skillos/memory.db"
+  
+  # FAISS index path for semantic search
+  faiss_index_path: ".cache/ultimate_skillos/memory_index.faiss"
+  
+  # Enable FAISS semantic search (falls back to in-memory if False)
+  enable_faiss: true
+
+agent:
+  # Maximum steps in agent execution loop
+  max_steps: 6
+  
+  # Timeout for agent execution (seconds)
+  timeout_seconds: 300
+  
+  # Verbose logging during execution
+  verbose: false
+  
+  # Enable memory system integration
+  enable_memory: true
+  
+  routing:
+    # Routing mode: "keyword", "hybrid", "llm_only"
+    mode: "hybrid"
+    
+    # Use embedding-based skill selection
+    use_embeddings: true
+    
+    # Use LLM for intent classification
+    use_llm_for_intent: false
+    
+    # Fall back to keyword routing if hybrid fails
+    keyword_fallback: true
+    
+    # Minimum confidence threshold for embeddings
+    embedding_threshold: 0.5
+
+logging:
+  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  
+  # Log format string
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # Optional log file path (null for console only)
+  file: null

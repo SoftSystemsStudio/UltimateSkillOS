@@ -13,6 +13,10 @@ huggingface-hub==0.36.0
 pydantic>=2.0.0
 pydantic-core>=2.0.0
 
+# Configuration Management
+tomli>=2.0.0  # TOML parser (built-in for Python 3.11+)
+pyyaml>=6.0  # YAML support (optional)
+
 # Optional Dependencies (for extended features)
 # tavily==1.0.0  # Uncomment for web research capability
 

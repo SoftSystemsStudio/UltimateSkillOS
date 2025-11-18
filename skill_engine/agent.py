@@ -7,22 +7,109 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
+from config import AgentConfig, AppConfig, load_config
 from skill_engine.domain import AgentPlan, AgentResult, PlanStep, SkillInput, StepResult
 from skill_engine.engine import SkillEngine
-from skill_engine.memory.memory_manager import get_memory_manager
+from skill_engine.memory.manager import get_memory_manager, MemoryManager
+from skill_engine.registry import get_global_registry, SkillRegistry
 from skill_engine.skill_base import RunContext
-from core.router import Router  # Using the existing Router implementation
+from skill_engine.memory.facade import MemoryFacade
+from core.router import Router
+from core.routing_config import RoutingConfig
 
 logger = logging.getLogger(__name__)
 
 
 class Agent:
-    def __init__(self, max_steps: int = 6) -> None:
+    def __init__(
+        self,
+        config: AgentConfig,
+        registry: SkillRegistry | None = None,
+        memory: MemoryManager | None = None,
+    ) -> None:
+        """
+        Initialize Agent with explicit dependency injection.
+
+        Args:
+            config: AgentConfig with execution parameters and routing mode.
+            registry: SkillRegistry for skill lookup (uses global if None).
+            memory: MemoryManager for memory operations (creates new if None).
+        """
+        self.config = config
+        self.registry = registry or get_global_registry()
+        self.memory_manager = memory or get_memory_manager()
+        self.memory_facade = self.memory_manager.get_facade()
+
+        # Initialize engine and router
         self.engine = SkillEngine()
-        # Shared, process-wide memory manager (SQLite-backed by default)
-        self.memory = get_memory_manager()
-        self.router = Router()
-        self.max_steps = max_steps
+
+        # Create router with config's routing settings
+        routing_config = RoutingConfig(
+            mode=config.routing.mode,
+            use_embeddings=config.routing.use_embeddings,
+            use_llm_for_intent=config.routing.use_llm_for_intent,
+            keyword_fallback=config.routing.keyword_fallback,
+            embedding_threshold=config.routing.embedding_threshold,
+        )
+        self.router = Router(routing_config)
+
+    @staticmethod
+    def from_env(
+        config_path: str | None = None,
+        env_prefix: str = "SKILLOS_",
+    ) -> Agent:
+        """
+        Create Agent from environment configuration.
+
+        Loads configuration from layered sources and returns a ready-to-use Agent.
+
+        Args:
+            config_path: Optional path to config file (TOML/YAML).
+            env_prefix: Prefix for environment variables (default: SKILLOS_).
+
+        Returns:
+            Agent instance with configuration loaded from environment.
+
+        Example:
+            # Uses ultimateskillos.toml + environment variables
+            agent = Agent.from_env()
+
+            # Custom config path
+            agent = Agent.from_env(config_path="production.toml")
+
+            # Custom environment prefix
+            agent = Agent.from_env(env_prefix="MYAPP_")
+        """
+        app_config = load_config(config_path, env_prefix)
+
+        # Configure logging if file specified
+        if app_config.logging.file:
+            logging.basicConfig(
+                level=app_config.logging.level,
+                format=app_config.logging.format,
+                filename=app_config.logging.file,
+            )
+        else:
+            logging.basicConfig(
+                level=app_config.logging.level,
+                format=app_config.logging.format,
+            )
+
+        return Agent(config=app_config.agent)
+
+    @staticmethod
+    def default(max_steps: int = 6) -> Agent:
+        """
+        Create Agent with default configuration (convenience method).
+
+        Args:
+            max_steps: Override default maximum steps.
+
+        Returns:
+            Agent with default AppConfig.
+        """
+        agent_config = AgentConfig(max_steps=max_steps)
+        return Agent(config=agent_config)
 
     def run(
         self, task: str, *, max_steps: int | None = None, verbose: bool = False
@@ -32,8 +119,8 @@ class Agent:
 
         Args:
             task: The task/query to execute.
-            max_steps: Maximum steps to take (overrides instance default).
-            verbose: Whether to print intermediate steps.
+            max_steps: Maximum steps to take (overrides config default).
+            verbose: Whether to print intermediate steps (overrides config).
 
         Returns:
             AgentResult with complete execution trace and structured data.
@@ -41,7 +128,8 @@ class Agent:
         # Setup
         plan_id = str(uuid.uuid4())
         trace_id = str(uuid.uuid4())
-        max_steps = max_steps or self.max_steps
+        max_steps = max_steps or self.config.max_steps
+        verbose = verbose or self.config.verbose
         start_time = time.time()
 
         # Create plan from task
@@ -79,11 +167,11 @@ class Agent:
                     result.add_step_result(step_result)
                     break
 
-                # Create execution context
+                # Create execution context with memory facade
                 context = RunContext(
                     trace_id=trace_id,
                     correlation_id=plan_id,
-                    memory_context=self.memory.search(query),
+                    memory_facade=self.memory_facade,
                 )
 
                 # Execute skill
@@ -128,16 +216,23 @@ class Agent:
                     skill_output if isinstance(skill_output, dict) else None
                 )
 
-                # Memory write: store useful outcomes
-                if structured_obs is not None:
-                    if "summary" in structured_obs:
-                        self.memory.add(str(structured_obs["summary"]))
-                    elif "answer" in structured_obs:
-                        self.memory.add(str(structured_obs["answer"]))
-                    else:
-                        text_val = params.get("text")
-                        if isinstance(text_val, str):
-                            self.memory.add(text_val)
+                # Memory write: store useful outcomes (if enabled)
+                if self.config.enable_memory and structured_obs is not None:
+                    try:
+                        if "summary" in structured_obs:
+                            self.memory_facade.add(
+                                str(structured_obs["summary"]), tier="long_term"
+                            )
+                        elif "answer" in structured_obs:
+                            self.memory_facade.add(
+                                str(structured_obs["answer"]), tier="long_term"
+                            )
+                        else:
+                            text_val = params.get("text")
+                            if isinstance(text_val, str):
+                                self.memory_facade.add(text_val, tier="long_term")
+                    except Exception as e:
+                        logger.warning(f"Failed to write to memory: {e}")
 
                 # Termination: explicit summary/answer
                 if (
@@ -149,7 +244,8 @@ class Agent:
                     )
                     result.status = "success"
                     result.final_answer = final_answer
-                    result.memory_used = self.memory.search(task)
+                    if self.config.enable_memory:
+                        result.memory_used = self.memory_facade.recall_context(task)
                     break
 
                 # Termination: memory_search skill
@@ -191,19 +287,23 @@ class Agent:
                                 answer_text = top["text"]  # type: ignore[index]
 
                     if answer_text:
-                        self.memory.add(answer_text)
+                        if self.config.enable_memory:
+                            self.memory_facade.add(answer_text, tier="long_term")
                         result.status = "success"
                         result.final_answer = answer_text
-                        result.memory_used = self.memory.search(task)
+                        if self.config.enable_memory:
+                            result.memory_used = self.memory_facade.recall_context(task)
                         break
 
                     no_match_answer = (
                         "I could not find anything in memory that answers that."
                     )
-                    self.memory.add(no_match_answer)
+                    if self.config.enable_memory:
+                        self.memory_facade.add(no_match_answer, tier="long_term")
                     result.status = "partial"
                     result.final_answer = no_match_answer
-                    result.memory_used = self.memory.search(task)
+                    if self.config.enable_memory:
+                        result.memory_used = self.memory_facade.recall_context(task)
                     break
 
                 # Default: propagate observation into next query
@@ -213,7 +313,8 @@ class Agent:
             if result.status == "failed":
                 result.status = "partial"
                 result.final_answer = query
-                result.memory_used = self.memory.search(task)
+                if self.config.enable_memory:
+                    result.memory_used = self.memory_facade.recall_context(task)
 
         except Exception as e:
             logger.exception(f"Unexpected error during agent execution: {e}")
