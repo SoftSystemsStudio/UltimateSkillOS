@@ -25,6 +25,11 @@ redis>=4.0.0  # Optional: Redis client for circuit-breaker persistence (set SKIL
 fastapi>=0.95.0
 uvicorn[standard]>=0.22.0
 
+# LLM Integrations
+openai>=1.0.0  # OpenAI GPT-4, GPT-3.5-turbo
+anthropic>=0.18.0  # Anthropic Claude (optional)
+python-dotenv>=1.0.0  # Load environment variables from .env file
+
 # Development & Testing
 pytest>=7.0.0
 black>=23.0.0

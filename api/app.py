@@ -4,6 +4,10 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file (for API keys)
+load_dotenv()
 
 from skill_engine.agent import Agent as RuntimeAgent
 
