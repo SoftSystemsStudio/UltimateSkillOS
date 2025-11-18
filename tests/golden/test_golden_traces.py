@@ -5,7 +5,7 @@ import pytest
 from skill_engine.agent import Agent
 
 
-GOLDEN_DIR = os.path.join(os.path.dirname(__file__), "..", "golden")
+GOLDEN_DIR = os.path.dirname(__file__)
 
 
 pytestmark = pytest.mark.skipif(not os.environ.get("RUN_GOLDEN"), reason="Golden tests disabled")
