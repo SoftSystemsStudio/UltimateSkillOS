@@ -1,138 +1,261 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UltimateSkillOS Chat</title>
+    <!-- Tailwind CSS + daisyUI -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-            background: #f5f5f5;
+        /* Custom scrollbar for chat history */
+        .chat-history::-webkit-scrollbar {
+            width: 8px;
         }
-        h1 {
-            color: #333;
-            text-align: center;
+        .chat-history::-webkit-scrollbar-track {
+            background: transparent;
         }
-        .chat-container {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        textarea {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
+        .chat-history::-webkit-scrollbar-thumb {
+            background: #4a5568;
             border-radius: 4px;
-            font-size: 14px;
-            font-family: inherit;
-            resize: vertical;
-            box-sizing: border-box;
         }
-        textarea:focus {
-            outline: none;
-            border-color: #4CAF50;
+        .chat-history::-webkit-scrollbar-thumb:hover {
+            background: #718096;
         }
-        button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: background 0.3s;
-        }
-        button:hover {
-            background: #45a049;
-        }
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        .response-container {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f9f9f9;
-            border-radius: 4px;
-            border-left: 4px solid #4CAF50;
-            display: none;
-        }
-        .response-container.error {
-            border-left-color: #f44336;
-            background: #ffebee;
-        }
-        .response-container.visible {
-            display: block;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            margin-top: 10px;
-            color: #666;
-        }
-        .loading.visible {
-            display: block;
-        }
-        pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            margin: 0;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 3px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        .status-success { background: #4CAF50; color: white; }
-        .status-error { background: #f44336; color: white; }
     </style>
 </head>
-<body>
-    <h1>🤖 UltimateSkillOS Chat</h1>
-    <div class="chat-container">
-        <textarea id="input" rows="4" placeholder="Type your question here... (e.g., 'How does photosynthesis work?')"></textarea>
-        <button id="sendBtn" onclick="sendMessage()">Send</button>
-        <div class="loading" id="loading">⏳ Processing your request...</div>
-        <div class="response-container" id="responseContainer">
-            <div id="statusBadge"></div>
-            <pre id="response"></pre>
+<body class="bg-base-200">
+    <!-- Main Container -->
+    <div class="flex flex-col h-screen max-w-5xl mx-auto">
+        
+        <!-- Header -->
+        <header class="bg-base-300 shadow-lg">
+            <div class="navbar">
+                <div class="flex-1">
+                    <h1 class="text-2xl font-bold px-4">🤖 UltimateSkillOS Chat</h1>
+                </div>
+                <div class="flex-none">
+                    <!-- Theme selector (optional extension point) -->
+                    <div class="dropdown dropdown-end">
+                        <label tabindex="0" class="btn btn-ghost btn-circle">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                        </label>
+                        <ul tabindex="0" class="dropdown-content z-[1] p-2 shadow-2xl bg-base-300 rounded-box w-52 mt-4">
+                            <li><button class="btn btn-sm btn-block btn-ghost justify-start" onclick="setTheme('dark')">🌙 Dark</button></li>
+                            <li><button class="btn btn-sm btn-block btn-ghost justify-start" onclick="setTheme('light')">☀️ Light</button></li>
+                            <li><button class="btn btn-sm btn-block btn-ghost justify-start" onclick="setTheme('lofi')">🎨 Lofi</button></li>
+                            <li><button class="btn btn-sm btn-block btn-ghost justify-start" onclick="setTheme('cyberpunk')">🚀 Cyberpunk</button></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Chat History Area (scrollable) -->
+        <div class="flex-1 overflow-y-auto chat-history p-4 space-y-4" id="chatHistory">
+            <!-- Welcome message -->
+            <div class="chat chat-start">
+                <div class="chat-image avatar">
+                    <div class="w-10 rounded-full bg-primary flex items-center justify-center text-primary-content">
+                        🤖
+                    </div>
+                </div>
+                <div class="chat-header">
+                    Assistant
+                    <time class="text-xs opacity-50 ml-1" id="welcomeTime"></time>
+                </div>
+                <div class="chat-bubble chat-bubble-primary">
+                    Welcome to UltimateSkillOS! I'm your AI assistant. Ask me anything!
+                </div>
+            </div>
+
+            <!-- Messages will be appended here dynamically -->
+            <!-- Example structure for reference:
+            
+            User message:
+            <div class="chat chat-end">
+                <div class="chat-image avatar">
+                    <div class="w-10 rounded-full bg-accent flex items-center justify-center text-accent-content">
+                        👤
+                    </div>
+                </div>
+                <div class="chat-header">
+                    You
+                    <time class="text-xs opacity-50 ml-1">12:45 PM</time>
+                </div>
+                <div class="chat-bubble chat-bubble-accent">
+                    What is machine learning?
+                </div>
+            </div>
+
+            Assistant message:
+            <div class="chat chat-start">
+                <div class="chat-image avatar">
+                    <div class="w-10 rounded-full bg-primary flex items-center justify-center text-primary-content">
+                        🤖
+                    </div>
+                </div>
+                <div class="chat-header">
+                    Assistant
+                    <time class="text-xs opacity-50 ml-1">12:45 PM</time>
+                </div>
+                <div class="chat-bubble chat-bubble-primary">
+                    Machine learning is a subset of AI...
+                </div>
+            </div>
+            -->
         </div>
+
+        <!-- Fixed Input Box at Bottom -->
+        <footer class="bg-base-300 border-t border-base-content/10 p-4">
+            <div class="flex gap-2 max-w-4xl mx-auto">
+                <input 
+                    type="text" 
+                    id="messageInput" 
+                    placeholder="Type your message..." 
+                    class="input input-bordered flex-1 focus:input-primary"
+                    onkeypress="handleKeyPress(event)"
+                />
+                <button 
+                    id="sendBtn"
+                    class="btn btn-primary px-8" 
+                    onclick="sendMessage()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    Send
+                </button>
+            </div>
+            <!-- Loading indicator -->
+            <div id="loadingIndicator" class="text-center mt-2 hidden">
+                <span class="loading loading-dots loading-md text-primary"></span>
+            </div>
+        </footer>
+
     </div>
 
     <script>
+        // ============================================
+        // THEME MANAGEMENT
+        // ============================================
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+        }
+
+        // Load saved theme on page load
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        setTheme(savedTheme);
+
+        // ============================================
+        // TIME FORMATTING
+        // ============================================
+        function formatTime() {
+            const now = new Date();
+            return now.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit',
+                hour12: true 
+            });
+        }
+
+        // Set welcome message time
+        document.getElementById('welcomeTime').textContent = formatTime();
+
+        // ============================================
+        // MESSAGE RENDERING
+        // ============================================
+        function addMessage(text, isUser = false) {
+            const chatHistory = document.getElementById('chatHistory');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat ${isUser ? 'chat-end' : 'chat-start'}`;
+            
+            const avatar = isUser ? '👤' : '🤖';
+            const sender = isUser ? 'You' : 'Assistant';
+            const bubbleClass = isUser ? 'chat-bubble-accent' : 'chat-bubble-primary';
+            
+            messageDiv.innerHTML = `
+                <div class="chat-image avatar">
+                    <div class="w-10 rounded-full ${isUser ? 'bg-accent' : 'bg-primary'} flex items-center justify-center ${isUser ? 'text-accent-content' : 'text-primary-content'}">
+                        ${avatar}
+                    </div>
+                </div>
+                <div class="chat-header">
+                    ${sender}
+                    <time class="text-xs opacity-50 ml-1">${formatTime()}</time>
+                </div>
+                <div class="chat-bubble ${bubbleClass}">
+                    ${escapeHtml(text)}
+                </div>
+            `;
+            
+            chatHistory.appendChild(messageDiv);
+            
+            // Auto-scroll to bottom
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function addErrorMessage(errorText) {
+            const chatHistory = document.getElementById('chatHistory');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat chat-start';
+            
+            messageDiv.innerHTML = `
+                <div class="chat-image avatar">
+                    <div class="w-10 rounded-full bg-error flex items-center justify-center text-error-content">
+                        ⚠️
+                    </div>
+                </div>
+                <div class="chat-header">
+                    System
+                    <time class="text-xs opacity-50 ml-1">${formatTime()}</time>
+                </div>
+                <div class="chat-bubble chat-bubble-error">
+                    ${escapeHtml(errorText)}
+                </div>
+            `;
+            
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============================================
+        // API INTEGRATION (send to /chat endpoint)
+        // ============================================
         async function sendMessage() {
-            const query = document.getElementById("input").value.trim();
-            const responseArea = document.getElementById("response");
-            const responseContainer = document.getElementById("responseContainer");
-            const loading = document.getElementById("loading");
-            const sendBtn = document.getElementById("sendBtn");
-            const statusBadge = document.getElementById("statusBadge");
+            const input = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const query = input.value.trim();
 
             if (!query) {
-                alert("Please enter a question!");
-                return;
+                return; // Don't send empty messages
             }
 
-            // Show loading, disable button
-            loading.classList.add("visible");
+            // Add user message to chat
+            addMessage(query, true);
+            
+            // Clear input
+            input.value = '';
+            
+            // Show loading state
             sendBtn.disabled = true;
-            responseContainer.classList.remove("visible", "error");
+            loadingIndicator.classList.remove('hidden');
 
             try {
-                const response = await fetch("/chat", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ query }),
+                // Call the /chat API endpoint
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
                 });
 
                 const data = await response.json();
@@ -141,38 +264,39 @@
                     throw new Error(data.detail || `Server error: ${response.status}`);
                 }
 
-                // Display response
-                responseContainer.classList.add("visible");
-                statusBadge.className = "status-badge status-success";
-                statusBadge.textContent = "✓ Success";
-                
-                // Format response nicely
+                // Extract and display the assistant's response
+                let assistantMessage = '';
                 if (typeof data.response === 'object') {
-                    responseArea.textContent = JSON.stringify(data.response, null, 2);
+                    // If response is structured, format it nicely
+                    assistantMessage = JSON.stringify(data.response, null, 2);
                 } else {
-                    responseArea.textContent = data.response;
+                    assistantMessage = String(data.response);
                 }
 
+                addMessage(assistantMessage, false);
+
             } catch (error) {
-                // Display error
-                responseContainer.classList.add("visible", "error");
-                statusBadge.className = "status-badge status-error";
-                statusBadge.textContent = "✗ Error";
-                responseArea.textContent = `Error: ${error.message}`;
+                // Display error in chat
+                addErrorMessage(`Error: ${error.message}`);
             } finally {
-                // Hide loading, enable button
-                loading.classList.remove("visible");
+                // Hide loading state
                 sendBtn.disabled = false;
+                loadingIndicator.classList.add('hidden');
+                input.focus();
             }
         }
 
-        // Allow Enter key to send (with Shift+Enter for new line)
-        document.getElementById("input").addEventListener("keydown", function(e) {
-            if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
+        // ============================================
+        // KEYBOARD SHORTCUTS
+        // ============================================
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
                 sendMessage();
             }
-        });
+        }
+
+        // Focus input on page load
+        document.getElementById('messageInput').focus();
     </script>
 </body>
 </html>
