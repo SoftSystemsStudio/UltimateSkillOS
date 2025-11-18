@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Data and cache
+data/
+memory_store/
+.cache/
+*.log
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose*.yml
+
+# CI/CD
+.github/
+
+# Notebooks
+*.ipynb
+.ipynb_checkpoints/
