@@ -10,12 +10,11 @@ from typing import Any, Dict, List, Optional
 from config import AgentConfig, AppConfig, load_config
 from skill_engine.domain import AgentPlan, AgentResult, PlanStep, SkillInput, StepResult
 from skill_engine.engine import SkillEngine
-from skill_engine.memory.manager import get_memory_manager, MemoryManager
+from skill_engine.memory.manager import get_memory_manager
 from skill_engine.registry import get_global_registry, SkillRegistry
 from skill_engine.skill_base import RunContext
 from skill_engine.memory.facade import MemoryFacade
 from core.router import Router
-from core.routing_config import RoutingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ class Agent:
         self,
         config: AgentConfig,
         registry: SkillRegistry | None = None,
-        memory: MemoryManager | None = None,
+        memory_facade: MemoryFacade | None = None,
     ) -> None:
         """
         Initialize Agent with explicit dependency injection.
@@ -33,25 +32,23 @@ class Agent:
         Args:
             config: AgentConfig with execution parameters and routing mode.
             registry: SkillRegistry for skill lookup (uses global if None).
-            memory: MemoryManager for memory operations (creates new if None).
+            memory_facade: MemoryFacade for memory operations (creates new if None).
         """
         self.config = config
         self.registry = registry or get_global_registry()
-        self.memory_manager = memory or get_memory_manager()
-        self.memory_facade = self.memory_manager.get_facade()
+        # get_memory_manager() returns MemoryFacade directly
+        self.memory_facade = memory_facade or get_memory_manager()
 
         # Initialize engine and router
         self.engine = SkillEngine()
 
         # Create router with config's routing settings
-        routing_config = RoutingConfig(
-            mode=config.routing.mode,
-            use_embeddings=config.routing.use_embeddings,
-            use_llm_for_intent=config.routing.use_llm_for_intent,
-            keyword_fallback=config.routing.keyword_fallback,
-            embedding_threshold=config.routing.embedding_threshold,
-        )
-        self.router = Router(routing_config)
+        # Note: config.routing is already a RoutingConfig from config module
+        try:
+            self.router = Router(config.routing)
+        except Exception as e:
+            logger.warning(f"Failed to initialize router with config: {e}, using default")
+            self.router = Router()
 
     @staticmethod
     def from_env(

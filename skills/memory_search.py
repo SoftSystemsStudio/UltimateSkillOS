@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from skill_engine.base import BaseSkill
-from skill_engine.memory.memory_manager import get_memory_manager
+from skill_engine.memory.manager import get_memory_manager
 
 
 class MemorySearchSkill(BaseSkill):
