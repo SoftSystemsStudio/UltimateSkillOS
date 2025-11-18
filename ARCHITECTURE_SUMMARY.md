@@ -2,6 +2,8 @@
 ARCHITECTURE SUMMARY: UltimateSkillOS Modernization (Nov 18, 2025)
 
 This document summarizes the major architectural improvements implemented.
+
+Updated: Added Layered Configuration System (commit 2ed12efc)
 """
 
 # ==============================================================================
@@ -359,4 +361,59 @@ Output: AgentResult
    - Browse long-term memory
    - Analyze memory patterns
    - Export/import memory
+
+7. Skill auto-discovery from entrypoints
+   - Automatic registration from installed packages
+   - Dynamic skill loading
+
+# ==============================================================================
+# 6. LAYERED CONFIGURATION SYSTEM (commit 2ed12efc) - NEW
+# ==============================================================================
+
+"""
+Configuration management with layered sources and environment variable support.
+
+Files: config/__init__.py, config/loader.py, ultimateskillos.toml, config.yml.example
+
+Components:
+  - LoggingConfig: Logging level, format, file output
+  - MemoryConfig: Embedding model, dimensions, top-k, persistence paths
+  - RoutingConfig: Mode selection, embedding threshold, LLM flags
+  - AgentConfig: Max steps, timeout, verbose, routing config
+  - AppConfig: Complete configuration combining all above
+  
+  - load_config(): Layered loading with precedence
+    1. Built-in defaults (lowest priority)
+    2. ultimateskillos.toml in current directory
+    3. Custom config file (if provided)
+    4. Environment variables (highest priority)
+  
+  - load_from_file(): Support for TOML and YAML formats
+    * Handles pyproject.toml [tool.skillos] section
+    * Falls back gracefully if parsing libraries unavailable
+  
+  - merge_from_env(): Environment variable override
+    * Prefix-based: SKILLOS_AGENT_MAX_STEPS=10
+    * Auto-type coercion: true/false → bool, "10" → int
+    * Nested: SKILLOS_AGENT_ROUTING_MODE=hybrid
+
+Benefits:
+  - Single source of truth for configuration
+  - Environment-specific overrides without code changes
+  - Secrets via environment variables (never in repo)
+  - Development/staging/production configurations
+  - Backward compatible with Agent.default(max_steps=6)
+
+Agent Bootstrap Updated:
+  - Old: Agent(max_steps=6) - simple but inflexible
+  - New: Agent(config=AgentConfig(...)) - explicit and testable
+  - Convenience: Agent.from_env() - loads config from all sources
+  - Simple: Agent.default(max_steps=6) - backward compatible
+
+Configuration Files:
+  - ultimateskillos.toml: Project defaults (commit to repo)
+  - config.yml.example: YAML template for customization
+  - Environment: SKILLOS_* variables (override anything)
+
+See CONFIG_GUIDE.md for complete documentation and examples.
 """
