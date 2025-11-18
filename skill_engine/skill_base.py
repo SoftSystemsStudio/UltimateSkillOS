@@ -20,7 +20,7 @@ from skill_engine.domain import SkillInput, SkillName, SkillOutput, SkillVersion
 logger = logging.getLogger(__name__)
 
 # resilience primitives (circuit breaker)
-from skill_engine.resilience import registry as circuit_registry, CircuitOpen, CircuitBreakerConfig
+from skill_engine.resilience import CircuitOpen, CircuitBreakerConfig, CircuitBreaker
 
 
 class RunContext:
@@ -42,6 +42,7 @@ class RunContext:
         metadata: dict[str, Any] | None = None,
         memory_facade: Optional[Any] = None,
         logger: Optional[logging.Logger] = None,
+        circuit_registry: Optional[Any] = None,
     ):
         self.trace_id = trace_id
         self.correlation_id = correlation_id
@@ -50,6 +51,8 @@ class RunContext:
         self.memory = memory_facade  # MemoryFacade for skills to interact with memory
         # Logger (structured) available to skills; falls back to module logger
         self.logger = logger or logging.getLogger(__name__)
+        # Optional circuit breaker registry injected by caller
+        self.circuit_registry = circuit_registry
 
     def to_dict(self) -> dict[str, Any]:
         """Convert context to dictionary for serialization."""
@@ -151,7 +154,7 @@ def safe_invoke(skill: Any, input_data: SkillInput, context: RunContext) -> Skil
 
     attempt = 0
     last_exc: Exception | None = None
-    # Prepare circuit breaker if configured
+    # Prepare circuit breaker if configured. Prefer registry supplied in context.
     breaker = None
     try:
         cb_conf_raw = sla.circuit_breaker
@@ -168,7 +171,15 @@ def safe_invoke(skill: Any, input_data: SkillInput, context: RunContext) -> Skil
                 cb_cfg = CircuitBreakerConfig()
 
             skill_key = getattr(skill, "name", None) or getattr(skill, "__class__", type(skill)).__name__
-            breaker = circuit_registry.get_or_create(str(skill_key), cb_cfg)
+            # If caller provided a registry in the context, use it. Otherwise create a local in-memory breaker.
+            reg = getattr(context, "circuit_registry", None)
+            if reg is not None:
+                try:
+                    breaker = reg.get_or_create(str(skill_key), cb_cfg)
+                except Exception:
+                    breaker = CircuitBreaker(str(skill_key), cb_cfg)
+            else:
+                breaker = CircuitBreaker(str(skill_key), cb_cfg)
     except Exception:
         breaker = None
 

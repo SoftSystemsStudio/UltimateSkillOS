@@ -17,6 +17,8 @@ from skill_engine.memory.facade import MemoryFacade
 from core.router import Router
 from core.logging import get_logger as get_structured_logger
 from skill_engine.skill_base import safe_invoke
+from skill_engine.resilience import create_registry
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,14 @@ class Agent:
         self.registry = registry or get_global_registry()
         # get_memory_manager() returns MemoryFacade directly
         self.memory_facade = memory_facade or get_memory_manager()
+
+        # Create a circuit-breaker registry for this Agent instance.
+        # Uses SKILLOS_CIRCUIT_REDIS_URL if provided; avoids globals.
+        redis_url = os.environ.get("SKILLOS_CIRCUIT_REDIS_URL")
+        try:
+            self.circuit_registry = create_registry(redis_url)
+        except Exception:
+            self.circuit_registry = create_registry(None)
 
         # Initialize engine and router
         self.engine = SkillEngine()
@@ -173,6 +183,7 @@ class Agent:
                     correlation_id=plan_id,
                     memory_facade=self.memory_facade,
                     logger=step_logger,
+                    circuit_registry=self.circuit_registry,
                 )
 
                 # Execute skill (using safe_invoke to provide timeout/retries)

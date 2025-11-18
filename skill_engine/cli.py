@@ -13,7 +13,6 @@ import json
 import sys
 
 from skill_engine.agent import Agent
-from skill_engine.resilience import registry as circuit_registry
 
 
 def trace_run_command(args: argparse.Namespace) -> int:
@@ -43,9 +42,20 @@ def main(argv: list[str] | None = None) -> int:
         return trace_run_command(parsed)
     if parsed.cmd == "inspect-circuit":
         key = parsed.skill
-        state = None
+        # Construct Agent to obtain its registry (no side-effects at import time)
         try:
-            state = circuit_registry.get_state(key)
+            agent = Agent.from_env()
+        except Exception as e:
+            print(f"Failed to construct Agent: {e}")
+            return 2
+
+        reg = getattr(agent, "circuit_registry", None)
+        if not reg:
+            print("No circuit registry available on Agent instance")
+            return 1
+
+        try:
+            state = reg.get_state(key)
         except Exception as e:
             print(f"Error fetching circuit state: {e}")
             return 2

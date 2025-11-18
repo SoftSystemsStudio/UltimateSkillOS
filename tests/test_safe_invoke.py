@@ -5,6 +5,7 @@ import pytest
 from skill_engine.skill_base import safe_invoke, RunContext, SLA
 from skill_engine.domain import SkillInput, SkillOutput
 from skill_engine.resilience import CircuitOpen
+from skill_engine.resilience import create_registry
 
 
 class FastSkill:
@@ -42,7 +43,9 @@ class FailingSkill:
 
 
 def make_ctx(trace_id: str = "t"):  # helper
-    return RunContext(trace_id=trace_id)
+    # Provide an explicit in-memory registry for tests to avoid relying on globals
+    reg = create_registry(None)
+    return RunContext(trace_id=trace_id, circuit_registry=reg)
 
 
 def test_safe_invoke_success():
