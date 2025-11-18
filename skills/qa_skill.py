@@ -3,11 +3,11 @@ Question Answering Skill using LLM (OpenAI, Anthropic, etc.)
 Securely reads API keys from environment variables.
 """
 import os
-from typing import Optional
-from skill_engine.base import Skill
+from typing import Optional, Dict, Any
+from skill_engine.base import BaseSkill
 
 
-class QASkill(Skill):
+class QASkill(BaseSkill):
     """
     A general question-answering skill that uses an LLM to answer queries.
     Supports OpenAI, Anthropic, Google, and local LLM endpoints.
@@ -15,6 +15,7 @@ class QASkill(Skill):
     
     name = "question_answering"
     description = "Answers general questions using a large language model (LLM)."
+    keywords = ["question", "answer", "what", "how", "why", "explain", "tell me"]
     
     def __init__(self):
         super().__init__()
@@ -74,18 +75,25 @@ class QASkill(Skill):
                 f"Supported providers: openai, anthropic, local"
             )
     
-    def run(self, query: str, memory=None, **kwargs) -> dict:
+    def _run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Run the QA skill to answer a question using an LLM.
         
         Args:
-            query: The user's question
-            memory: Optional memory context (not used in this simple version)
-            **kwargs: Additional parameters
+            params: Dictionary containing 'query' key with the user's question
         
         Returns:
             dict with 'final_answer' key containing the LLM response
         """
+        # Extract query from params (handle both direct string and dict)
+        if isinstance(params, str):
+            query = params
+        else:
+            query = params.get("query", "") or params.get("input", "")
+        
+        if not query:
+            return {"final_answer": "No query provided", "error": "Missing query parameter"}
+        
         try:
             client = self._get_client()
             
@@ -147,6 +155,7 @@ class QASkill(Skill):
         
         except Exception as e:
             # Return error information for debugging
+            self.log.error(f"Error calling LLM: {str(e)}")
             return {
                 "final_answer": f"Error calling LLM: {str(e)}",
                 "error": str(e),
