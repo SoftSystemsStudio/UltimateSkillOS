@@ -277,6 +277,28 @@ class AgentResult:
         """Get all steps that failed."""
         return [sr for sr in self.step_results if not sr.success]
 
+    def compute_confidence(self) -> float:
+        """
+        Compute the overall confidence score based on step results.
+
+        Returns:
+            float: The average confidence score across all steps.
+        """
+        confidences = [sr.output.metrics.get("confidence", 0) for sr in self.step_results if sr.success]
+        return sum(confidences) / len(confidences) if confidences else 0.0
+
+    def flag_low_confidence_steps(self, threshold: float = 0.5) -> list[StepResult]:
+        """
+        Identify steps with low confidence scores.
+
+        Args:
+            threshold (float): The confidence threshold below which steps are flagged.
+
+        Returns:
+            list[StepResult]: Steps with confidence below the threshold.
+        """
+        return [sr for sr in self.step_results if sr.output.metrics.get("confidence", 1) < threshold]
+
     def to_trace(self) -> str:
         """
         Generate a traceable reasoning chain for the agent's execution.

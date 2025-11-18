@@ -6,7 +6,9 @@ Provides a single access point for skills to interact with memory.
 
 from __future__ import annotations
 
+import json
 import logging
+from datetime import datetime
 from typing import Any, Literal
 
 from skill_engine.memory.base import MemoryRecord
@@ -196,3 +198,43 @@ class MemoryFacade:
         for i, memory in enumerate(relevant_memories):
             context[f"memory_{i+1}"] = memory.content
         return context
+
+    def store_feedback(
+        self, task: str, agent_answer: str, feedback_score: float, issues: list[str]
+    ) -> None:
+        """
+        Store evaluation feedback in the memory log.
+
+        Args:
+            task (str): The task or query evaluated.
+            agent_answer (str): The agent's answer.
+            feedback_score (float): The evaluation score.
+            issues (list[str]): List of identified issues.
+        """
+        feedback_entry = {
+            "task": task,
+            "agent_answer": agent_answer,
+            "feedback_score": feedback_score,
+            "issues": issues,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        self.long_term.add(json.dumps(feedback_entry), {"type": "feedback"})
+
+    def store_human_feedback(self, task: str, agent_answer: str, user_feedback: str, score: float) -> None:
+        """
+        Store human feedback in the memory log.
+
+        Args:
+            task (str): The task or query evaluated.
+            agent_answer (str): The agent's answer.
+            user_feedback (str): The feedback provided by the user.
+            score (float): The score assigned by the user.
+        """
+        feedback_entry = {
+            "task": task,
+            "agent_answer": agent_answer,
+            "user_feedback": user_feedback,
+            "score": score,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        self.long_term.add(json.dumps(feedback_entry), {"type": "human_feedback"})

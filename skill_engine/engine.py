@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 import logging
 import pkgutil
-from typing import Any, Dict, Mapping
+from typing import Any, Callable, Dict, List, Mapping
 
 import skills
 from skill_engine.base import BaseSkill
@@ -26,6 +26,7 @@ class SkillEngine:
         self.skills: Dict[str, BaseSkill] = self.load_all_skills()
         self.planner_factory = planner_factory
         self.memory_factory = memory_factory
+        self.task_finished_observer = TaskFinishedObserver()
 
     def load_all_skills(self) -> Dict[str, BaseSkill]:
         loaded: Dict[str, BaseSkill] = {}
@@ -180,3 +181,29 @@ class SkillEngine:
         if hasattr(self, "planning_strategies") and strategy in self.planning_strategies:
             return self.planning_strategies[strategy]
         raise ValueError(f"Planning strategy '{strategy}' not found.")
+
+class TaskFinishedObserver:
+    """
+    Observer for task_finished events to trigger evaluation.
+    """
+    def __init__(self):
+        self.subscribers: List[Callable[[AgentResult], None]] = []
+
+    def subscribe(self, callback: Callable[[AgentResult], None]) -> None:
+        """Subscribe to the task_finished event."""
+        self.subscribers.append(callback)
+
+    def notify(self, result: AgentResult) -> None:
+        """Notify all subscribers with the task result."""
+        for subscriber in self.subscribers:
+            subscriber(result)
+
+# Example usage in the Agent loop
+class Agent:
+    def __init__(self):
+        self.task_finished_observer = TaskFinishedObserver()
+
+    def execute_plan(self, plan: AgentPlan) -> AgentResult:
+        result = super().execute_plan(plan)
+        self.task_finished_observer.notify(result)
+        return result
