@@ -112,7 +112,7 @@ class QASkill(BaseSkill):
                         }
                     ],
                     temperature=0.7,
-                    max_tokens=1000
+                    max_completion_tokens=1000  # Updated parameter name for newer models
                 )
                 answer = response.choices[0].message.content
             
