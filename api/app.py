@@ -1,74 +1,40 @@
-from __future__ import annotations
-
-from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Dict, Optional
-
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
-from flask import Flask, jsonify
-from skill_engine.domain import Agent
+from typing import Optional, Dict, Any
 
-from skill_engine.agent import Agent
+from skill_engine.agent import Agent as RuntimeAgent
 
-
-class RunRequest(BaseModel):
-    task: str
-    options: Optional[Dict[str, Any]] = {}
+app = FastAPI(title="UltimateSkillOS API")
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # Startup: lazily construct an Agent. This avoids side-effects at import time.
+class QueryInput(BaseModel):
+    query: str
+
+
+@app.on_event("startup")
+async def startup_event():
+    # Initialize the runtime Agent and store it on app.state
     try:
-        agent = Agent.from_env()
-        app.state._agent_error = None
-    except Exception as e:
-        # If the Agent cannot be constructed, keep app running but record the error.
-        # The endpoint will return 503 if agent is not available.
-        app.state.agent = None
-        app.state._agent_error = str(e)
-        yield
-        return
-    app.state.agent = agent
-    yield
-    # Cleanup: no shutdown logic needed
+        app.state.agent = RuntimeAgent.default()
+    except Exception:
+        # Fall back to from_env to be robust
+        app.state.agent = RuntimeAgent.from_env()
 
 
-app = FastAPI(title="UltimateSkillOS API", lifespan=lifespan)
-flask_app = Flask(__name__)
-flask_app.config.from_object(app.config)
-flask_app.agent = Agent()
-
-@app.post("/run")
-async def run_task(req: RunRequest, request: Request):
-    """Run a task through the Agent and return a structured AgentResult (JSON).
-
-    Request schema:
-    {
-      "task": "string",
-      "options": { "max_steps": 4, "trace": true }
-    }
-    """
-    agent: Agent | None = getattr(request.app.state, "agent", None)
-    err = getattr(request.app.state, "_agent_error", None)
+@app.post("/chat")
+async def chat(input: QueryInput, request: Request):
+    agent: Optional[RuntimeAgent] = getattr(request.app.state, "agent", None)
     if agent is None:
-        raise HTTPException(status_code=503, detail={"error": "Agent not available", "reason": err})
-
-    task = req.task
-    options = req.options or {}
-    max_steps = options.get("max_steps")
-    trace = options.get("trace", False)
-
+        raise HTTPException(status_code=503, detail="Agent not initialized")
     try:
-        result = agent.run(task, max_steps=max_steps, verbose=bool(trace))
+        result = agent.run(input.query)
+        if hasattr(result, "to_dict"):
+            return {"response": result.to_dict()}
+        return {"response": str(result)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": str(e)})
+        raise HTTPException(status_code=500, detail=str(e))
 
-    # AgentResult.to_dict() returns JSON-serializable structure
-    return result.to_dict()
 
-@app.route('/metrics', methods=['GET'])
-def get_metrics():
-    """API endpoint to fetch aggregated metrics."""
-    metrics = flask_app.agent.get_metrics_summary()
-    return jsonify(metrics)
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
