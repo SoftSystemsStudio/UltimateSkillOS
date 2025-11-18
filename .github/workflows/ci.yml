@@ -47,7 +47,7 @@ jobs:
 
   integration-tests:
     runs-on: ubuntu-latest
-    if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_integration == 'true') || env.RUN_INTEGRATION == '1' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_integration == 'true' }}
     services:
       redis:
         image: redis:7-alpine
@@ -77,7 +77,7 @@ jobs:
 
   golden-tests:
     runs-on: ubuntu-latest
-    if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_golden == 'true') || env.RUN_GOLDEN == '1' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_golden == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
