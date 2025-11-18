@@ -20,10 +20,6 @@ async def startup_event():
         app.state.agent = RuntimeAgent.from_env()
 
 
-# Serve static files from the webui directory
-app.mount("/", StaticFiles(directory="webui", html=True), name="web")
-
-
 class QueryInput(BaseModel):
     query: str
 
@@ -47,3 +43,7 @@ async def chat(input: QueryInput, request: Request):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# Serve static files from the webui directory (mount LAST so API routes take precedence)
+app.mount("/", StaticFiles(directory="webui", html=True), name="web")
