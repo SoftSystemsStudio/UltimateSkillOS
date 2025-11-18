@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 import skills
 from skill_engine.base import BaseSkill
 from skill_engine.domain import StepResult, AgentResult, SkillOutput
+from core.feedback_logger import FeedbackLogger
+from core.strategy_experiment import StrategyExperimenter
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,8 @@ class SkillEngine:
         self.planner_factory = planner_factory
         self.memory_factory = memory_factory
         self.task_finished_observer = TaskFinishedObserver()
+        self.feedback_logger = FeedbackLogger()
+        self.strategy_experimenter = StrategyExperimenter(["keyword", "hybrid", "ml"])
 
     def load_all_skills(self) -> Dict[str, BaseSkill]:
         loaded: Dict[str, BaseSkill] = {}
@@ -141,6 +145,13 @@ class SkillEngine:
                 ))
                 total_time += execution_time
 
+                self.feedback_logger.log(
+                    query=step.input_data.get("query", step.input_data.get("text", "")),
+                    skills=[step.skill_name],
+                    outcome="success" if "final_answer" in skill_output else "failed",
+                    metrics={"execution_time_ms": execution_time}
+                )
+
                 # Check for early termination
                 if "final_answer" in skill_output:
                     logger.info(f"Final answer detected: {skill_output['final_answer']}")
@@ -175,6 +186,13 @@ class SkillEngine:
                     execution_time_ms=execution_time
                 ))
                 total_time += execution_time
+
+                self.feedback_logger.log(
+                    query=step.input_data.get("query", step.input_data.get("text", "")),
+                    skills=[step.skill_name],
+                    outcome="failed",
+                    metrics={"execution_time_ms": execution_time, "error": str(e)}
+                )
 
         # Check if max_steps is reached without a final answer
         if not any(sr.success for sr in step_results):
@@ -223,6 +241,15 @@ class SkillEngine:
         if hasattr(self, "planning_strategies") and strategy in self.planning_strategies:
             return self.planning_strategies[strategy]
         raise ValueError(f"Planning strategy '{strategy}' not found.")
+
+    def experiment_with_strategies(self, query, reward_fn):
+        strategy, reward = self.strategy_experimenter.try_alternative(query, self, reward_fn)
+        return strategy, reward
+
+    def reload_skills(self):
+        self.skills = self.load_all_skills()
+        logger.info("Skills reloaded dynamically.")
+
 
 class TaskFinishedObserver:
     """

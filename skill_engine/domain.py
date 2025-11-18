@@ -15,6 +15,7 @@ from datetime import datetime
 from core.router import Router
 from skill_engine.memory.facade import MemoryFacade
 from pydantic import BaseModel
+from core.self_eval_harness import MetricsDashboard
 
 # ============================================================================
 # Skill Identification & Versioning
@@ -329,6 +330,11 @@ class Agent:
     router: Router
     memory: MemoryFacade
 
+    def __init__(self, router: Router, memory: MemoryFacade):
+        self.router = router
+        self.memory = memory
+        self.metrics_dashboard = MetricsDashboard()
+
     def execute_plan(self, plan: AgentPlan) -> AgentResult:
         """
         Execute a given plan step-by-step.
@@ -381,7 +387,7 @@ class Agent:
         status = "success" if all(sr.success for sr in step_results) else "partial"
         final_answer = step_results[-1].output.payload if step_results and step_results[-1].success else None
 
-        return AgentResult(
+        result = AgentResult(
             plan_id=plan.plan_id,
             status=status,
             final_answer=final_answer,
@@ -390,6 +396,19 @@ class Agent:
             steps_completed=sum(1 for sr in step_results if sr.success),
             memory_used=memory_context
         )
+
+        # Log metrics after execution
+        self.metrics_dashboard.log({
+            "outcome": "success" if result.success else "failure",
+            "steps": result.steps,
+            "satisfaction": result.satisfaction,
+            "skills": result.skills_used
+        })
+
+        return result
+
+    def get_metrics_summary(self):
+        return self.metrics_dashboard.get_trends()
 
 
 class ReflectionFeedback(BaseModel):

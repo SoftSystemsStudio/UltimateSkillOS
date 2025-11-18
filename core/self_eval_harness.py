@@ -134,6 +134,27 @@ def log_failure_modes(runs: list) -> None:
         json.dump(failure_modes, f, indent=2)
     print(f"Logged failure modes to {failure_log_path}")
 
+class MetricsDashboard:
+    def __init__(self):
+        self.metrics = []
+    def log(self, entry):
+        self.metrics.append(entry)
+    def get_trends(self):
+        # Return accuracy, steps, satisfaction, skill usage trends
+        accuracy = sum(1 for m in self.metrics if m["outcome"] == "success") / len(self.metrics) if self.metrics else 0
+        avg_steps = sum(m.get("steps", 0) for m in self.metrics) / len(self.metrics) if self.metrics else 0
+        satisfaction = sum(m.get("satisfaction", 0) for m in self.metrics) / len(self.metrics) if self.metrics else 0
+        skill_usage = {}
+        for m in self.metrics:
+            for s in m.get("skills", []):
+                skill_usage[s] = skill_usage.get(s, 0) + 1
+        return {
+            "accuracy": accuracy,
+            "avg_steps": avg_steps,
+            "satisfaction": satisfaction,
+            "skill_usage": skill_usage
+        }
+
 def main():
     runs = run_meta_learning_simulation()
     report = {"timestamp": datetime.utcnow().isoformat()+'Z', "skill": "meta_learning_demo", "metrics": aggregate(runs), "runs": runs}

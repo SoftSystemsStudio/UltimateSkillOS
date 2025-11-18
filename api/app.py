@@ -5,6 +5,8 @@ from typing import Any, AsyncGenerator, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
+from flask import Flask, jsonify
+from skill_engine.domain import Agent
 
 from skill_engine.agent import Agent
 
@@ -33,7 +35,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(title="UltimateSkillOS API", lifespan=lifespan)
-
+flask_app = Flask(__name__)
+flask_app.config.from_object(app.config)
+flask_app.agent = Agent()
 
 @app.post("/run")
 async def run_task(req: RunRequest, request: Request):
@@ -62,3 +66,9 @@ async def run_task(req: RunRequest, request: Request):
 
     # AgentResult.to_dict() returns JSON-serializable structure
     return result.to_dict()
+
+@app.route('/metrics', methods=['GET'])
+def get_metrics():
+    """API endpoint to fetch aggregated metrics."""
+    metrics = flask_app.agent.get_metrics_summary()
+    return jsonify(metrics)

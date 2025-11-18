@@ -14,6 +14,43 @@ from skills.skill_manifest import list_manifests
 logger = logging.getLogger(__name__)
 
 
+class RouterStrategy:
+    """
+    Abstract base class for router strategies.
+    """
+    def route(self, text: str) -> Dict[str, Any]:
+        raise NotImplementedError()
+
+class KeywordRouter(RouterStrategy):
+    def __init__(self, router: Router):
+        self.router = router
+    def route(self, text: str) -> Dict[str, Any]:
+        return self.router._route_keyword(text)
+
+class HybridRouter(RouterStrategy):
+    def __init__(self, router: Router):
+        self.router = router
+    def route(self, text: str) -> Dict[str, Any]:
+        return self.router._route_hybrid(text)
+
+class MLRouter(RouterStrategy):
+    def __init__(self, model, router: Router):
+        self.model = model
+        self.router = router
+    def route(self, text: str) -> Dict[str, Any]:
+        # Placeholder: use model to predict skill sequence
+        # If model is not confident, fallback to hybrid
+        prediction = self.model.predict([text]) if self.model else None
+        if prediction:
+            return {
+                "use_skill": prediction[0],
+                "confidence": 0.95,
+                "params": {"text": text},
+                "reasoning": "MLRouter prediction"
+            }
+        else:
+            return self.router._route_hybrid(text)
+
 class Router:
     """
     Intelligent router that routes user queries to skills.
@@ -66,7 +103,26 @@ class Router:
             except Exception as e:
                 logger.warning(f"Failed to build skill embedding index: {e}")
 
+    def set_strategy(self, strategy: str, model=None):
+        if strategy == "keyword":
+            self.strategy = KeywordRouter(self)
+        elif strategy == "hybrid":
+            self.strategy = HybridRouter(self)
+        elif strategy == "ml":
+            self.strategy = MLRouter(model, self)
+        else:
+            raise ValueError(f"Unknown router strategy: {strategy}")
+        logger.info(f"Router strategy set to: {strategy}")
+
     def route(self, text: str) -> Dict[str, Any]:
+        if hasattr(self, "strategy"):
+            result = self.strategy.route(text)
+            # Fallback to keyword router if ML confidence is low
+            if result.get("confidence", 1.0) < 0.6 and not isinstance(self.strategy, KeywordRouter):
+                logger.info("Low confidence, falling back to keyword router.")
+                return KeywordRouter(self).route(text)
+            return result
+
         """
         Route a query to the best skill.
 
