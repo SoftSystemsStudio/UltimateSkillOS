@@ -11,9 +11,12 @@ import logging
 import sqlite3
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:  # pragma: no cover - type checking only
+    from core.embedding_provider import EmbeddingProvider
 
 from skill_engine.memory.base import MemoryBackend, MemoryRecord
 
@@ -34,8 +37,9 @@ class FAISSBackend:
         self,
         index_path: str | Path = ".cache/memory_index",
         db_path: str | Path = ".cache/memory.db",
-        embedding_model=None,
-        embedding_dim: int = 384,
+        embedding_model: Any = None,
+        embedding_provider: "EmbeddingProvider" | None = None,
+        embedding_dim: Optional[int] = None,
     ):
         """
         Initialize FAISS backend.
@@ -49,7 +53,8 @@ class FAISSBackend:
         self.index_path = Path(index_path)
         self.db_path = Path(db_path)
         self.embedding_model = embedding_model
-        self.embedding_dim = embedding_dim
+        self.embedding_provider = embedding_provider
+        self.embedding_dim = self._resolve_embedding_dim(embedding_dim)
 
         # Create directories
         self.index_path.parent.mkdir(parents=True, exist_ok=True)
@@ -138,6 +143,19 @@ class FAISSBackend:
         conn.close()
         logger.debug(f"Rebuilt ID mappings: {len(self._index_id_map)} records")
 
+    def _resolve_embedding_dim(self, fallback: Optional[int]) -> int:
+        """Determine embedding dimension from provider/model/fallback."""
+        if self.embedding_provider is not None:
+            return getattr(self.embedding_provider, "dimension", fallback or 384)
+        if self.embedding_model is not None:
+            dim_getter = getattr(self.embedding_model, "get_sentence_embedding_dimension", None)
+            if callable(dim_getter):
+                try:
+                    return int(dim_getter())
+                except Exception:
+                    pass
+        return fallback or 384
+
     def _embed(self, text: str) -> np.ndarray:
         """
         Generate embedding for text.
@@ -151,15 +169,24 @@ class FAISSBackend:
         Raises:
             RuntimeError: If embedding model not available.
         """
+        provider = self.embedding_provider
+        if provider is not None:
+            try:
+                embedding = provider.embed(text)
+                return np.array([embedding], dtype=np.float32)
+            except Exception as exc:
+                logger.error(f"Embedding provider '%s' failed: %s", provider.name, exc)
+                return np.zeros((1, self.embedding_dim), dtype=np.float32)
+
         if not self.embedding_model:
-            logger.warning("No embedding model configured, using zero vector")
-            return np.zeros(self.embedding_dim, dtype=np.float32)
+            logger.warning("No embedding provider/model configured, using zero vector")
+            return np.zeros((1, self.embedding_dim), dtype=np.float32)
 
         try:
             embedding = self.embedding_model.encode(text)
             return np.array([embedding], dtype=np.float32)
         except Exception as e:
-            logger.error(f"Failed to generate embedding: {e}")
+            logger.error(f"Failed to generate embedding via embedding_model: {e}")
             return np.zeros((1, self.embedding_dim), dtype=np.float32)
 
     def add(self, records: list[MemoryRecord]) -> None:

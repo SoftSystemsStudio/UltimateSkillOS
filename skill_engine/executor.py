@@ -3,7 +3,7 @@ Task executor - coordinates routing, skills, and memory for agent tasks.
 """
 
 from skill_engine.agent import Agent
-from config import AgentConfig, load_config
+from config import AgentConfig, AppConfig, load_config
 
 class TaskExecutor:
     """
@@ -14,7 +14,10 @@ class TaskExecutor:
         if config is None:
             app_config = load_config()
             config = app_config.agent
-        self.agent = Agent(config=config)
+        else:
+            app_config = AppConfig()
+            app_config.agent = config
+        self.agent = Agent(config=config, app_config=app_config)
 
     def run(self, text: str, max_steps: int = 1):
         """

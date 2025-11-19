@@ -107,6 +107,12 @@ model_name = "sentence-transformers/all-MiniLM-L6-v2"
 # Embedding dimension (384 for all-MiniLM-L6-v2)
 embedding_dim = 384
 
+# Determine which embedding backend to load
+provider = "auto"  # auto | sentence_transformer | openai | dummy
+
+# Override OpenAI embedding model when provider="openai"
+openai_embedding_model = "text-embedding-3-small"
+
 # Top-K results for memory searches
 top_k = 3
 
@@ -131,6 +137,14 @@ enable_faiss = true
 - `SKILLOS_MEMORY_LONG_TERM_DB_PATH`
 - `SKILLOS_MEMORY_FAISS_INDEX_PATH`
 - `SKILLOS_MEMORY_ENABLE_FAISS` (true/false)
+- `SKILLOS_MEMORY_PROVIDER`
+- `SKILLOS_MEMORY_OPENAI_EMBEDDING_MODEL`
+
+**Embedding Provider Options:**
+- `auto` (default): Use sentence-transformers if installed, otherwise fall back to OpenAI, then dummy zeros.
+- `sentence_transformer`: Force local `sentence-transformers` models; install `sentence-transformers` beforehand.
+- `openai`: Use OpenAI embeddings via `OPENAI_API_KEY`; configure `memory.openai_embedding_model`.
+- `dummy`: Return zero vectors (useful for tests when embeddings are not required).
 
 ### Agent Configuration
 
@@ -147,6 +161,12 @@ verbose = false
 
 # Enable memory system integration
 enable_memory = true
+
+# Toggle self-improving router updates
+continuous_learning_enabled = false
+
+# Minimum new feedback entries before retraining
+continuous_learning_min_events = 25
 
 [agent.routing]
 # Routing mode: "keyword", "hybrid", "llm_only"
@@ -170,11 +190,25 @@ embedding_threshold = 0.5
 - `SKILLOS_AGENT_TIMEOUT_SECONDS`
 - `SKILLOS_AGENT_VERBOSE` (true/false)
 - `SKILLOS_AGENT_ENABLE_MEMORY` (true/false)
+- `SKILLOS_AGENT_CONTINUOUS_LEARNING_ENABLED` (true/false)
+- `SKILLOS_AGENT_CONTINUOUS_LEARNING_MIN_EVENTS`
 - `SKILLOS_AGENT_ROUTING_MODE`
 - `SKILLOS_AGENT_ROUTING_USE_EMBEDDINGS` (true/false)
 - `SKILLOS_AGENT_ROUTING_USE_LLM_FOR_INTENT` (true/false)
 - `SKILLOS_AGENT_ROUTING_KEYWORD_FALLBACK` (true/false)
 - `SKILLOS_AGENT_ROUTING_EMBEDDING_THRESHOLD`
+
+### Continuous Learning Workflow
+
+1. Enable the feature:
+   ```toml
+   [agent]
+   continuous_learning_enabled = true
+   continuous_learning_min_events = 50
+   ```
+2. Ensure skills emit feedback via the built-in `FeedbackLogger` (already wired through `SkillEngine`). Each skill execution appends to `data/feedback_log.json`.
+3. Once the configured number of new events accumulates, the agent triggers `core.continuous_learning.ContinuousLearner`, which retrains the ML router (`core/ml_router.py`) and updates model metadata under `data/`.
+4. Monitor logs for `continuous_learning_updated` events to verify retraining progress.
 
 ### Logging Configuration
 

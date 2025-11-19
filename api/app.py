@@ -1,15 +1,19 @@
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
+import logging
 import os
+from typing import Optional, Dict, Any
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
 # Load environment variables from .env file (for API keys)
 load_dotenv()
 
 from skill_engine.agent import Agent as RuntimeAgent
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="UltimateSkillOS API")
 
@@ -35,9 +39,18 @@ async def chat(input: QueryInput, request: Request):
         raise HTTPException(status_code=503, detail="Agent not initialized")
     try:
         result = agent.run(input.query)
+        # Log the full structured result for troubleshooting while keeping the response minimal
         if hasattr(result, "to_dict"):
-            return {"response": result.to_dict()}
-        return {"response": str(result)}
+            logger.info("Agent result: %s", result.to_dict())
+        else:
+            logger.info("Agent result (unstructured): %s", result)
+
+        final_answer = getattr(result, "final_answer", None)
+        if isinstance(final_answer, str) and final_answer.strip():
+            return {"response": final_answer.strip()}
+
+        # Fallback to a simple status message if we didn't get a final answer
+        return {"response": "I wasn't able to generate an answer. Please try rephrasing your question."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

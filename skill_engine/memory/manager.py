@@ -10,6 +10,8 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
+from config import MemoryConfig, load_config
+from core.embedding_provider import EmbeddingProvider, EmbeddingProviderFactory
 from skill_engine.memory.base import MemoryBackend
 from skill_engine.memory.facade import MemoryFacade
 from skill_engine.memory.faiss_backend import FAISSBackend
@@ -32,6 +34,8 @@ class MemoryManager:
         index_path: str | Path = ".cache/memory_index",
         db_path: str | Path = ".cache/memory.db",
         embedding_model=None,
+        memory_config: MemoryConfig | None = None,
+        embedding_provider: EmbeddingProvider | None = None,
     ):
         """
         Initialize the memory manager.
@@ -44,21 +48,36 @@ class MemoryManager:
         """
         logger.info("Initializing MemoryManager")
 
+        self.memory_config = memory_config or MemoryConfig()
+        self.embedding_provider = embedding_provider or EmbeddingProviderFactory.create(self.memory_config)
+
+        # Allow legacy embedding_model argument for backwards compatibility
+        if embedding_model is None and hasattr(self.embedding_provider, "_model"):
+            embedding_model = getattr(self.embedding_provider, "_model")
+
+        resolved_index_path = self._resolve_index_path(index_path)
+        resolved_db_path = Path(db_path or self.memory_config.long_term_db_path)
+
         # Initialize short-term memory
         self.short_term = ShortTermMemory()
         logger.debug("Initialized short-term memory")
 
         # Initialize long-term memory with backend
         if long_term_backend is None:
-            try:
-                long_term_backend = FAISSBackend(
-                    index_path=index_path,
-                    db_path=db_path,
-                    embedding_model=embedding_model,
-                )
-                logger.debug("Initialized FAISS backend for long-term memory")
-            except ImportError:
-                logger.warning("FAISS not available, falling back to in-memory")
+            if self.memory_config.enable_faiss:
+                try:
+                    long_term_backend = FAISSBackend(
+                        index_path=resolved_index_path,
+                        db_path=resolved_db_path,
+                        embedding_model=embedding_model,
+                        embedding_provider=self.embedding_provider,
+                        embedding_dim=self.memory_config.embedding_dim,
+                    )
+                    logger.debug("Initialized FAISS backend for long-term memory")
+                except ImportError:
+                    logger.warning("FAISS not available, falling back to in-memory")
+                    long_term_backend = InMemoryBackend()
+            else:
                 long_term_backend = InMemoryBackend()
 
         self.long_term = LongTermMemory(long_term_backend)
@@ -71,6 +90,15 @@ class MemoryManager:
         # Create unified facade
         self.facade = MemoryFacade(self.short_term, self.long_term, self.scratchpad)
         logger.info("MemoryManager initialized successfully")
+
+    def _resolve_index_path(self, configured: str | Path) -> Path:
+        """Normalize configured FAISS index path to a directory."""
+        path_obj = Path(configured or self.memory_config.faiss_index_path)
+        if path_obj.suffix:
+            path_obj = path_obj.parent
+        if not path_obj.exists():
+            path_obj.mkdir(parents=True, exist_ok=True)
+        return path_obj
 
     def get_facade(self) -> MemoryFacade:
         """Get the unified memory facade."""
@@ -87,6 +115,8 @@ _global_memory_manager: Optional[MemoryManager] = None
 
 def get_memory_manager(
     long_term_backend: Optional[MemoryBackend] = None,
+    memory_config: MemoryConfig | None = None,
+    embedding_provider: EmbeddingProvider | None = None,
     **kwargs,
 ) -> MemoryFacade:
     """
@@ -102,8 +132,18 @@ def get_memory_manager(
     global _global_memory_manager
 
     if _global_memory_manager is None:
+        resolved_config = memory_config
+        if resolved_config is None:
+            try:
+                resolved_config = load_config().memory
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("Falling back to default memory config: %s", exc)
+                resolved_config = MemoryConfig()
+
         _global_memory_manager = MemoryManager(
             long_term_backend=long_term_backend,
+            memory_config=resolved_config,
+            embedding_provider=embedding_provider,
             **kwargs,
         )
 

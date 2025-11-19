@@ -52,6 +52,8 @@ class MemoryConfig:
     long_term_db_path: str = ".cache/ultimate_skillos/memory.db"
     faiss_index_path: str = ".cache/ultimate_skillos/memory_index.faiss"
     enable_faiss: bool = True  # Fall back to in-memory if FAISS unavailable
+    provider: Literal["auto", "sentence_transformer", "openai", "dummy"] = "auto"
+    openai_embedding_model: str = "text-embedding-3-small"
 
 
 @dataclass
@@ -73,6 +75,8 @@ class AgentConfig:
     timeout_seconds: int = 300
     verbose: bool = False
     enable_memory: bool = True
+    continuous_learning_enabled: bool = False
+    continuous_learning_min_events: int = 25
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     circuit_breaker: CircuitBreakerConfig = field(default_factory=CircuitBreakerConfig)
 
@@ -96,12 +100,16 @@ class AppConfig:
                 "long_term_db_path": self.memory.long_term_db_path,
                 "faiss_index_path": self.memory.faiss_index_path,
                 "enable_faiss": self.memory.enable_faiss,
+                "provider": self.memory.provider,
+                "openai_embedding_model": self.memory.openai_embedding_model,
             },
             "agent": {
                 "max_steps": self.agent.max_steps,
                 "timeout_seconds": self.agent.timeout_seconds,
                 "verbose": self.agent.verbose,
                 "enable_memory": self.agent.enable_memory,
+                "continuous_learning_enabled": self.agent.continuous_learning_enabled,
+                "continuous_learning_min_events": self.agent.continuous_learning_min_events,
                 "routing": {
                     "mode": self.agent.routing.mode,
                     "use_embeddings": self.agent.routing.use_embeddings,

@@ -5,8 +5,10 @@ Agent-based skill execution framework with autonomous routing, persistent memory
 ## Features
 
 - **Modular Skills**: Pluggable skill system with base abstractions
-- **Intelligent Routing**: Keyword-based intent matching with fallbacks
+- **Routing + Planning**: Hybrid keyword/embedding intent routing backed by a deterministic heuristic planner
 - **Persistent Memory**: FAISS-backed vector storage + JSON metadata
+- **Pluggable Embeddings**: Sentence-transformers, OpenAI, or dummy providers via config
+- **Continuous Learning (optional)**: Feedback-driven router updates once enough traces accrue
 - **Agent Loop**: Multi-step reasoning with memory context injection
 - **Type Safety**: Full type hints and validation
 - **Zero Dependencies**: Minimal core + optional external integrations
@@ -16,9 +18,9 @@ Agent-based skill execution framework with autonomous routing, persistent memory
 ```python
 from skill_engine.agent import Agent
 
-agent = Agent(max_steps=6)
+agent = Agent.from_env()  # honors ultimateskillos.toml + SKILLOS_* overrides
 result = agent.run("summarize this text", verbose=True)
-print(result["final_answer"])
+print(result.final_answer)
 ```
 
 ## Architecture
@@ -30,6 +32,14 @@ print(result["final_answer"])
 
 See [STRUCTURE.md](./STRUCTURE.md) for detailed documentation.
 
+### Planner & Execution Flow
+
+- Goals are analyzed for intent (question, research, summary, planning cues, memory hints).
+- Planner always kicks off with `memory_search` to ground the task in prior context.
+- Research/plan/summarize steps are conditionally inserted based on keyword heuristics.
+- Core answers are produced via `question_answering` with QA vs reasoning modes.
+- Every plan ends with `reflection` so downstream skills can critique their own output.
+
 ## Skills Included
 
 - **Summarize**: Extract concise summaries
@@ -39,7 +49,7 @@ See [STRUCTURE.md](./STRUCTURE.md) for detailed documentation.
 - **Reflection**: Criticism and improvement suggestions
 - **Autofix**: Typo correction
 - **Memory Search**: Query persistent memory
-- **Planner**: Task decomposition
+- **Planner**: Heuristic task decomposer that sequences memory, research, reasoning, summary, and reflection skills
 
 ## Installation
 
@@ -54,8 +64,8 @@ pip install -r requirements.txt
 ```python
 from skill_engine.agent import Agent
 
-# Create agent with default configuration
-agent = Agent.default(max_steps=6)
+# Create agent with layered configuration (defaults + ultimateskillos.toml + env)
+agent = Agent.from_env()
 
 # Run a task
 result = agent.run("How does photosynthesis work?", verbose=True)
@@ -106,8 +116,10 @@ python -m skill_engine.cli summarize '{"text": "Your text here"}'
 
 ## Configuration
 
-Vector model: `all-MiniLM-L6-v2` (384 dims)
-Search top-k: 5 results
-Max agent steps: 6 (configurable)
+- **Embeddings**: Configure `memory.provider` to `auto`, `sentence_transformer`, `openai`, or `dummy`. When using OpenAI, set `OPENAI_API_KEY` and optionally `memory.openai_embedding_model`.
+- **Vector Model Defaults**: `all-MiniLM-L6-v2` (384 dims) with FAISS persisted to `.cache/ultimate_skillos/`.
+- **Search Top-K**: `memory.top_k` (default 3) controls recall size.
+- **Agent Steps**: `agent.max_steps` (default 6) plus `agent.verbose`, `agent.enable_memory` toggles.
+- **Continuous Learning**: Toggle `agent.continuous_learning_enabled` and set `agent.continuous_learning_min_events` to control when router retraining kicks in based on feedback logs.
 
-Configuration file: `ultimateskillos.toml` or environment variables with `SKILLOS_` prefix.
+Manage configuration in `ultimateskillos.toml` or override with environment variables prefixed by `SKILLOS_` (see `CONFIG_GUIDE.md` for exhaustive reference).

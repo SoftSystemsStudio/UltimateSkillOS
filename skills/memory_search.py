@@ -10,6 +10,12 @@ from skill_engine.memory.manager import get_memory_manager
 
 from pydantic import BaseModel
 from skill_engine.domain import SkillInput, SkillOutput
+from config import load_config
+
+try:
+    DEFAULT_TOP_K = int(load_config().memory.top_k)
+except Exception:  # pragma: no cover - defensive fallback
+    DEFAULT_TOP_K = 5
 
 class MemorySearchInput(BaseModel):
     query: str = ""
@@ -30,9 +36,9 @@ class MemorySearchSkill(BaseSkill):
     sla = None
 
     def invoke(self, input_data: SkillInput, context) -> SkillOutput:
-        mm = get_memory_manager()
+        facade = getattr(context, "memory_facade", None) or get_memory_manager()
         query = input_data.payload.get("query", "")
-        k = int(input_data.payload.get("k", 5))
+        k = int(input_data.payload.get("k", DEFAULT_TOP_K) or DEFAULT_TOP_K)
         if not query:
             return {
                 "error": "No query provided for memory_search.",
@@ -40,9 +46,10 @@ class MemorySearchSkill(BaseSkill):
                 "matches": [],
                 "confidence": 0.0,
             }
-        results: list = mm.search(query, k=k)
+        results = facade.search(query, top_k=k, tier="long_term")
+        serialized = [r.to_dict() if hasattr(r, "to_dict") else r for r in results]
         return {
             "query": query,
-            "matches": results,
+            "matches": serialized,
             "confidence": 0.7 if results else 0.3,
         }

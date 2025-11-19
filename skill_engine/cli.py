@@ -123,7 +123,7 @@ def main() -> None:
         max_steps = int(params.get("max_steps", 6))
         verbose = bool(params.get("verbose", False))
 
-        agent = Agent(max_steps=max_steps)
+        agent = Agent.default(max_steps=max_steps)
         result: Any = agent.run(task, verbose=verbose)
     else:
         engine = SkillEngine()

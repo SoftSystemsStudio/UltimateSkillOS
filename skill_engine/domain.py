@@ -10,8 +10,8 @@ Provides strongly-typed data structures for:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Optional
-from datetime import datetime
 from core.router import Router
 from skill_engine.memory.facade import MemoryFacade
 from pydantic import BaseModel
@@ -71,7 +71,7 @@ class SkillInput:
     payload: dict[str, Any]
     trace_id: str
     correlation_id: str | None = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
@@ -97,7 +97,7 @@ class SkillOutput:
     payload: dict[str, Any]
     warnings: list[str] = field(default_factory=list)
     metrics: dict[str, float] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
@@ -168,7 +168,7 @@ class AgentPlan:
     plan_id: str
     goal: str
     steps: list[PlanStep] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     version: str = "1.0.0"
 
     def add_step(self, step: PlanStep) -> None:
@@ -248,7 +248,7 @@ class AgentResult:
     steps_completed: int = 0
     memory_used: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
-    completed_at: datetime = field(default_factory=datetime.utcnow)
+    completed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def add_step_result(self, result: StepResult) -> None:
         """Record the result of a step."""
@@ -350,7 +350,7 @@ class Agent:
         total_time = 0.0
 
         for step in plan.steps:
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             try:
                 # Inject memory context into the step input
                 step.input_data.update(memory_context)
@@ -364,7 +364,7 @@ class Agent:
                     )
                 )
 
-                execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
                 step_results.append(StepResult(
                     step_id=step.step_id,
                     success=True,
@@ -374,7 +374,7 @@ class Agent:
                 total_time += execution_time
 
             except Exception as e:
-                execution_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+                execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
                 step_results.append(StepResult(
                     step_id=step.step_id,
                     success=False,
