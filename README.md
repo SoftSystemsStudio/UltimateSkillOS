@@ -108,6 +108,11 @@ Response format:
 }
 ```
 
+### Feedback & Learning Endpoints
+
+- `POST /feedback` — submit a rating/notes payload (`{"plan_id": "...", "rating": 1}`) to log explicit supervision and optionally trigger immediate retraining when enabled.
+- `GET /learning/status` — inspect whether the continuous-learning loop is enabled, view scheduler counters, and track how many feedback events are pending before the next router update.
+
 ### CLI
 
 ```bash
@@ -120,6 +125,6 @@ python -m skill_engine.cli summarize '{"text": "Your text here"}'
 - **Vector Model Defaults**: `all-MiniLM-L6-v2` (384 dims) with FAISS persisted to `.cache/ultimate_skillos/`.
 - **Search Top-K**: `memory.top_k` (default 3) controls recall size.
 - **Agent Steps**: `agent.max_steps` (default 6) plus `agent.verbose`, `agent.enable_memory` toggles.
-- **Continuous Learning**: Toggle `agent.continuous_learning_enabled` and set `agent.continuous_learning_min_events` to control when router retraining kicks in based on feedback logs.
+- **Continuous Learning**: Toggle `agent.continuous_learning_enabled`, set thresholds via `agent.continuous_learning_min_events`, and (optionally) configure the FastAPI background scheduler with `agent.continuous_learning_background_interval_seconds` plus opportunistic triggers via `agent.continuous_learning_trigger_on_feedback`.
 
 Manage configuration in `ultimateskillos.toml` or override with environment variables prefixed by `SKILLOS_` (see `CONFIG_GUIDE.md` for exhaustive reference).

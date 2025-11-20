@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 LOG_PATH = "data/feedback_log.json"
 
@@ -13,13 +13,14 @@ class FeedbackLogger:
             with open(log_path, "w") as f:
                 json.dump([], f)
 
-    def log(self, query, skills, outcome, metrics=None):
+    def log(self, query, skills, outcome, metrics=None, metadata=None):
         entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "query": query,
             "skills": skills,
             "outcome": outcome,
-            "metrics": metrics or {}
+            "metrics": metrics or {},
+            "metadata": metadata or {},
         }
         with open(self.log_path, "r+") as f:
             data = json.load(f)
@@ -37,7 +38,7 @@ class FeedbackLogger:
         skill_gaps_path = "skills/skill_gaps.json"
         with open(skill_gaps_path, "r+") as f:
             gaps = json.load(f)
-            gaps.append({"timestamp": datetime.utcnow().isoformat(), "gap": gap_description})
+            gaps.append({"timestamp": datetime.now(timezone.utc).isoformat(), "gap": gap_description})
             f.seek(0)
             json.dump(gaps, f, indent=2)
             f.truncate()

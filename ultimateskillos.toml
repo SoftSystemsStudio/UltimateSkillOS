@@ -42,6 +42,16 @@ enable_planning = true
 # Enable reflection/self-evaluation feature (Evaluator interface)
 enable_reflection = true
 
+# Enable continuous learning and configure its behavior
+continuous_learning_enabled = false
+continuous_learning_min_events = 25
+# Background retraining interval in seconds (set to 0 to disable background loop)
+continuous_learning_background_interval_seconds = 900
+# Run a training pass immediately when the API boots (if enabled)
+continuous_learning_background_run_immediately = true
+# Trigger opportunistic learning right after explicit /feedback submissions
+continuous_learning_trigger_on_feedback = true
+
 [agent.routing]
 # Routing mode: "keyword" (fallback), "hybrid" (default), "llm_only" (future)
 mode = "hybrid"

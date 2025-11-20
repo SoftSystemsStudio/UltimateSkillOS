@@ -77,6 +77,9 @@ class AgentConfig:
     enable_memory: bool = True
     continuous_learning_enabled: bool = False
     continuous_learning_min_events: int = 25
+    continuous_learning_background_interval_seconds: int = 900
+    continuous_learning_background_run_immediately: bool = True
+    continuous_learning_trigger_on_feedback: bool = True
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     circuit_breaker: CircuitBreakerConfig = field(default_factory=CircuitBreakerConfig)
 
@@ -110,6 +113,9 @@ class AppConfig:
                 "enable_memory": self.agent.enable_memory,
                 "continuous_learning_enabled": self.agent.continuous_learning_enabled,
                 "continuous_learning_min_events": self.agent.continuous_learning_min_events,
+                "continuous_learning_background_interval_seconds": self.agent.continuous_learning_background_interval_seconds,
+                "continuous_learning_background_run_immediately": self.agent.continuous_learning_background_run_immediately,
+                "continuous_learning_trigger_on_feedback": self.agent.continuous_learning_trigger_on_feedback,
                 "routing": {
                     "mode": self.agent.routing.mode,
                     "use_embeddings": self.agent.routing.use_embeddings,

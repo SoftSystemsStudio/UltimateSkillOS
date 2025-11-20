@@ -168,6 +168,15 @@ continuous_learning_enabled = false
 # Minimum new feedback entries before retraining
 continuous_learning_min_events = 25
 
+# Background retraining cadence in seconds (set to 0 to disable background loop)
+continuous_learning_background_interval_seconds = 900
+
+# Run a learning pass immediately on startup
+continuous_learning_background_run_immediately = true
+
+# Trigger learning right after POST /feedback when enough samples exist
+continuous_learning_trigger_on_feedback = true
+
 [agent.routing]
 # Routing mode: "keyword", "hybrid", "llm_only"
 mode = "hybrid"
@@ -192,6 +201,9 @@ embedding_threshold = 0.5
 - `SKILLOS_AGENT_ENABLE_MEMORY` (true/false)
 - `SKILLOS_AGENT_CONTINUOUS_LEARNING_ENABLED` (true/false)
 - `SKILLOS_AGENT_CONTINUOUS_LEARNING_MIN_EVENTS`
+- `SKILLOS_AGENT_CONTINUOUS_LEARNING_BACKGROUND_INTERVAL_SECONDS`
+- `SKILLOS_AGENT_CONTINUOUS_LEARNING_BACKGROUND_RUN_IMMEDIATELY` (true/false)
+- `SKILLOS_AGENT_CONTINUOUS_LEARNING_TRIGGER_ON_FEEDBACK` (true/false)
 - `SKILLOS_AGENT_ROUTING_MODE`
 - `SKILLOS_AGENT_ROUTING_USE_EMBEDDINGS` (true/false)
 - `SKILLOS_AGENT_ROUTING_USE_LLM_FOR_INTENT` (true/false)
@@ -207,8 +219,9 @@ embedding_threshold = 0.5
    continuous_learning_min_events = 50
    ```
 2. Ensure skills emit feedback via the built-in `FeedbackLogger` (already wired through `SkillEngine`). Each skill execution appends to `data/feedback_log.json`.
-3. Once the configured number of new events accumulates, the agent triggers `core.continuous_learning.ContinuousLearner`, which retrains the ML router (`core/ml_router.py`) and updates model metadata under `data/`.
-4. Monitor logs for `continuous_learning_updated` events to verify retraining progress.
+3. Optionally enable the FastAPI background loop via `continuous_learning_background_interval_seconds` so retraining runs on a cadence without manual triggers.
+4. When either the background loop fires or an opportunistic trigger after `/feedback` runs, `core.continuous_learning.ContinuousLearner` retrains the ML router (`core/ml_router.py`) and updates model metadata under `data/`.
+5. Monitor logs for `continuous_learning_updated` events or call `GET /learning/status` to verify loop health and see how many feedback events remain before the next retrain.
 
 ### Logging Configuration
 

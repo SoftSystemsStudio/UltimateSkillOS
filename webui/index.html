@@ -264,15 +264,11 @@
                     throw new Error(data.detail || `Server error: ${response.status}`);
                 }
 
-                // Extract and display the assistant's response
-                let assistantMessage = '';
-                if (typeof data.response === 'object') {
-                    // If response is structured, format it nicely
-                    assistantMessage = JSON.stringify(data.response, null, 2);
-                } else {
-                    assistantMessage = String(data.response);
-                }
-
+                // Extract and display only the final answer
+                const finalAnswer = data.final_answer;
+                const assistantMessage = (finalAnswer !== null && finalAnswer !== undefined && String(finalAnswer).trim()) 
+                    ? String(finalAnswer) 
+                    : 'No response available';
                 addMessage(assistantMessage, false);
 
             } catch (error) {

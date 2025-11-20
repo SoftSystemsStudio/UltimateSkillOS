@@ -17,6 +17,14 @@ class StubMemoryFacade:
         return []
 
 
+class DummyFeedbackLogger:
+    def __init__(self):
+        self.records = []
+
+    def log(self, *args, **kwargs):
+        self.records.append({"args": args, "kwargs": kwargs})
+
+
 class StaticPlanner:
     name = "planner"
     version = "9.9.9"
@@ -78,18 +86,21 @@ class ReflectionStub:
         return {"notes": "checked", "text_evaluated": text}
 
 
-def make_agent(monkeypatch, skills):
+def make_agent(monkeypatch, skills, feedback_logger=None):
     class FakeSkillEngine:
         def __init__(self):
             self.skills = skills
 
     monkeypatch.setattr("skill_engine.agent.SkillEngine", FakeSkillEngine)
     monkeypatch.setattr("skill_engine.agent.Router", lambda *args, **kwargs: DummyRouter())
-    return Agent(
+    agent = Agent(
         config=AgentConfig(max_steps=6, enable_memory=False),
         memory_facade=StubMemoryFacade(),
         app_config=AppConfig(),
     )
+    if feedback_logger is not None:
+        agent.feedback_logger = feedback_logger
+    return agent
 
 
 def test_agent_runs_planner_steps_before_router(monkeypatch):
@@ -156,3 +167,31 @@ def test_agent_replaces_last_result_placeholders(monkeypatch):
     # Reflection should receive the summarized output, not the raw QA answer
     assert reflection_skill.received == [result.final_answer]
     assert len(result.step_results) == 3
+
+
+def test_agent_logs_feedback_entries(monkeypatch):
+    feedback_logger = DummyFeedbackLogger()
+    qa_skill = QAStub(answer="Done")
+    planner = StaticPlanner(
+        [
+            {"skill": "question_answering", "input": {"query": "goal"}},
+            {"skill": "reflection", "input": {"text": "<LAST_RESULT>"}},
+        ]
+    )
+
+    agent = make_agent(
+        monkeypatch,
+        {
+            "planner": planner,
+            "question_answering": qa_skill,
+            "reflection": ReflectionStub(),
+        },
+        feedback_logger=feedback_logger,
+    )
+
+    agent.run("Assess autonomy")
+
+    assert feedback_logger.records, "Expected feedback logger to record entries"
+    record = feedback_logger.records[-1]
+    assert record["kwargs"]["outcome"] == "success"
+    assert record["kwargs"]["metadata"]["plan_id"]

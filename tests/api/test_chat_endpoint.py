@@ -6,6 +6,7 @@ import sys
 import os
 from fastapi.testclient import TestClient
 from unittest.mock import Mock
+from types import SimpleNamespace
 from skill_engine.domain import AgentResult
 
 
@@ -32,9 +33,16 @@ def client():
         total_time_ms=10.0
     )
     mock_agent.run.return_value = mock_result
+    mock_agent.config = SimpleNamespace(
+        continuous_learning_enabled=True,
+        continuous_learning_background_interval_seconds=900,
+        continuous_learning_trigger_on_feedback=True,
+    )
+    mock_agent.continuous_learner = None
     
     # Inject mock agent into app state
     api_module.app.state.agent = mock_agent
+    api_module.app.state.learning_runner = None
     
     # Create test client
     return TestClient(api_module.app)
@@ -106,3 +114,26 @@ def test_chat_endpoint_returns_structured_response(client):
         assert "plan_id" in resp
         assert "status" in resp
         assert resp["status"] == "success"
+
+
+def test_learning_status_endpoint(client):
+    agent = client.app.state.agent
+
+    # Provide learner stats and runner snapshot
+    learner_mock = Mock()
+    learner_mock.stats.return_value = {"version": 5, "total_events": 42, "events_since_update": 3}
+    agent.continuous_learner = learner_mock
+
+    class DummyRunner:
+        def snapshot(self):
+            return {"running": False, "total_runs": 2}
+
+    client.app.state.learning_runner = DummyRunner()
+
+    response = client.get("/learning/status")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["agent_initialized"] is True
+    assert payload["learning_available"] is True
+    assert payload["runner"]["running"] is False
+    assert payload["learner"]["version"] == 5

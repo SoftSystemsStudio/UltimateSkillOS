@@ -9,7 +9,7 @@ from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 from config import AgentConfig, AppConfig, load_config
-from skill_engine.domain import AgentPlan, AgentResult, PlanStep, SkillInput, StepResult
+from skill_engine.domain import AgentPlan, AgentResult, PlanStep, SkillInput, StepResult, SkillOutput
 from skill_engine.engine import SkillEngine
 from skill_engine.memory.manager import get_memory_manager
 from skill_engine.registry import get_global_registry, SkillRegistry
@@ -20,6 +20,7 @@ from core.logging import get_logger as get_structured_logger
 from skill_engine.skill_base import safe_invoke
 from skill_engine.resilience import create_registry
 from core.continuous_learning import ContinuousLearner
+from core.feedback_logger import FeedbackLogger
 import os
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ class Agent:
 
         # Initialize engine and router
         self.engine = SkillEngine()
+        self.feedback_logger = FeedbackLogger()
 
         # Create router with config's routing settings
         # Note: config.routing is already a RoutingConfig from config module
@@ -192,6 +194,8 @@ class Agent:
         last_result_text: Optional[str] = None
         final_answer_candidate: Optional[str] = None
         failure_occurred = False
+        skills_invoked: List[str] = []
+        reflection_snapshot: Optional[Dict[str, Any]] = None
 
         try:
             for step_num in range(1, max_steps + 1):
@@ -266,6 +270,8 @@ class Agent:
                             )
 
                     skill_output = safe_invoke(skill_obj, skill_input, context)
+                    normalized_output = self._normalize_output(skill_output)
+                    step_output_obj = self._coerce_skill_output(skill_output, normalized_output)
 
                     if verbose:
                         logger.info(f"Skill '{skill_name}' completed")
@@ -273,13 +279,14 @@ class Agent:
                     step_result = StepResult(
                         step_id=step_id,
                         success=True,
-                        output=skill_output if hasattr(skill_output, "to_dict") else None,
+                        output=step_output_obj,
                         execution_time_ms=(time.time() - step_start) * 1000,
                         attempt=1,
                     )
 
                     step_results.append(step_result)
                     result.add_step_result(step_result)
+                    skills_invoked.append(skill_name)
 
                     self.publish(
                         "skill_executed",
@@ -308,15 +315,22 @@ class Agent:
                         error=str(e),
                         params=params,
                     )
-                    break
+                    # Continue to next step instead of breaking if we're following a plan
+                    if is_plan_step and plan_index < len(plan.steps):
+                        continue
+                    else:
+                        break
 
-                structured_obs = self._normalize_output(skill_output)
+                structured_obs = normalized_output
                 extracted_answer = self._extract_answer_text(structured_obs)
                 if extracted_answer:
                     final_answer_candidate = str(extracted_answer)
                     last_result_text = final_answer_candidate
                 elif structured_obs is None and isinstance(skill_output, str):
                     last_result_text = skill_output
+
+                if skill_name == "reflection" and isinstance(structured_obs, dict):
+                    reflection_snapshot = structured_obs
 
                 if self.config.enable_memory and structured_obs is not None:
                     try:
@@ -455,14 +469,14 @@ class Agent:
                 query = str(skill_output)
 
             if result.status == "failed":
-                if final_answer_candidate and not failure_occurred:
-                    result.status = "success"
+                if final_answer_candidate:
+                    result.status = "success" if not failure_occurred else "partial"
                     result.final_answer = final_answer_candidate
                     if self.config.enable_memory:
                         result.memory_used = self.memory_facade.recall_context(task)
                 else:
                     result.status = "partial"
-                    result.final_answer = query
+                    result.final_answer = None  # Don't echo the query
                     if self.config.enable_memory:
                         result.memory_used = self.memory_facade.recall_context(task)
 
@@ -483,6 +497,7 @@ class Agent:
             result.metadata["plan_id"] = plan_id
             result.metadata["trace_id"] = trace_id
 
+            self._log_feedback(task, result, skills_invoked, reflection_snapshot)
             self._maybe_run_continuous_learning()
 
         return result
@@ -561,6 +576,15 @@ class Agent:
             return last_result or ""
         return value
 
+    def _coerce_skill_output(self, skill_output: Any, normalized: Optional[Dict[str, Any]]) -> SkillOutput | None:
+        if isinstance(skill_output, SkillOutput):
+            return skill_output
+        if isinstance(skill_output, dict):
+            return SkillOutput(payload=skill_output)
+        if normalized is not None:
+            return SkillOutput(payload=normalized)
+        return None
+
     def _normalize_output(self, skill_output: Any) -> Optional[Dict[str, Any]]:
         if isinstance(skill_output, dict):
             return skill_output
@@ -584,6 +608,49 @@ class Agent:
             if isinstance(val, (str, int, float)):
                 return str(val)
         return None
+
+    def _log_feedback(
+        self,
+        query: str,
+        result: AgentResult,
+        skills_invoked: List[str],
+        reflection_snapshot: Optional[Dict[str, Any]],
+    ) -> None:
+        logger_instance = getattr(self, "feedback_logger", None)
+        if not logger_instance:
+            return
+
+        try:
+            metrics: Dict[str, Any] = {
+                "total_time_ms": result.total_time_ms,
+                "steps_completed": result.steps_completed,
+            }
+            if reflection_snapshot:
+                score = reflection_snapshot.get("reflection_score") or reflection_snapshot.get("score")
+                if score is not None:
+                    metrics["reflection_score"] = score
+
+            metadata: Dict[str, Any] = {
+                "plan_id": result.plan_id,
+                "status": result.status,
+                "plan_used": result.metadata.get("plan_used"),
+                "plan": result.metadata.get("plan"),
+                "planner_plan": result.metadata.get("planner_plan"),
+                "step_results": [sr.to_dict() for sr in result.step_results],
+                "final_answer": result.final_answer,
+            }
+            if reflection_snapshot:
+                metadata["reflection_output"] = reflection_snapshot
+
+            logger_instance.log(
+                query=query,
+                skills=skills_invoked,
+                outcome=result.status,
+                metrics=metrics,
+                metadata=metadata,
+            )
+        except Exception as exc:
+            logger.warning("Failed to log feedback: %s", exc)
 
     def _maybe_run_continuous_learning(self) -> None:
         """Trigger background learning when enough feedback logs exist."""
